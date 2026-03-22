@@ -1,0 +1,78 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // ─── Users ───────────────────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read: if isSignedIn();
+
+      allow create: if isOwner(userId)
+        && request.resource.data.uid == userId;
+
+      allow update: if isOwner(userId)
+        && !request.resource.data.diff(resource.data).affectedKeys()
+             .hasAny(['uid', 'createdAt', 'email']);
+
+      allow delete: if false;
+
+      // Notifications subcollection
+      match /notifications/{notificationId} {
+        allow read: if isOwner(userId);
+        allow create: if isSignedIn();
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    // ─── Sidequests ──────────────────────────────────────────────────────────
+    match /sidequests/{sidequestId} {
+      allow read: if isSignedIn() && (
+        resource.data.visibility == 'public' ||
+        isOwner(resource.data.ownerId) ||
+        isOwner(resource.data.assigneeId)
+      );
+
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.status == 'incomplete'
+        && request.resource.data.assigneePending == false;
+
+      allow update: if isSignedIn() && (
+        isOwner(resource.data.ownerId) ||
+        (
+          isOwner(resource.data.assigneeId) &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'assigneePending', 'updatedAt'])
+        )
+      );
+
+      allow delete: if isSignedIn() && isOwner(resource.data.ownerId);
+    }
+
+    // ─── Friend requests ─────────────────────────────────────────────────────
+    match /friendRequests/{requestId} {
+      allow read: if isSignedIn() && (
+        isOwner(resource.data.fromUserId) ||
+        isOwner(resource.data.toUserId)
+      );
+
+      allow create: if isSignedIn()
+        && request.resource.data.fromUserId == request.auth.uid
+        && request.resource.data.status == 'pending';
+
+      allow update: if isSignedIn() && isOwner(resource.data.toUserId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['status', 'updatedAt']);
+
+      allow delete: if isSignedIn() && isOwner(resource.data.fromUserId);
+    }
+  }
+}
