@@ -34,10 +34,12 @@ export function SideQuestForm({ onSubmit, defaultValues, submitLabel = 'Crear Qu
       isEternal: defaultValues?.isEternal ?? true,
       expiresAt: toInputDate(defaultValues?.expiresAt),
       visibility: defaultValues?.visibility ?? 'private',
+      evidenceType: defaultValues?.evidenceType ?? 'none',
     },
   })
 
   const isEternal = watch('isEternal')
+  const evidenceType = watch('evidenceType')
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
@@ -109,6 +111,34 @@ export function SideQuestForm({ onSubmit, defaultValues, submitLabel = 'Crear Qu
         </div>
         {errors.visibility && <p className="text-xs text-red-400">{errors.visibility.message}</p>}
         <p className="text-xs text-gray-500">Las quests públicas aparecen en el explorador global.</p>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-sm font-medium text-gray-300">Evidencia requerida</label>
+        <p className="text-xs text-gray-500 mb-1">¿Qué debe adjuntar el asignado para completar la quest?</p>
+        <div className="flex gap-4">
+          {([
+            { value: 'none', label: 'Ninguna' },
+            { value: 'text', label: 'Texto' },
+            { value: 'photo', label: 'Foto' },
+          ] as const).map(({ value, label }) => (
+            <label key={value} className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                checked={evidenceType === value}
+                onChange={() => setValue('evidenceType', value, { shouldValidate: true })}
+                className="accent-purple-500"
+              />
+              <span className="text-sm text-gray-300">{label}</span>
+            </label>
+          ))}
+        </div>
+        {evidenceType === 'photo' && (
+          <p className="text-xs text-purple-400 mt-1">El asignado deberá subir una foto como prueba.</p>
+        )}
+        {evidenceType === 'text' && (
+          <p className="text-xs text-purple-400 mt-1">El asignado deberá escribir un texto como prueba.</p>
+        )}
       </div>
 
       <Button type="submit" loading={isSubmitting} className="w-full">

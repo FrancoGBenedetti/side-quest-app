@@ -30,6 +30,7 @@ function inputToFirestore(data: SideQuestInput) {
       ? Timestamp.fromDate(new Date(data.expiresAt))
       : null,
     visibility: data.visibility,
+    evidenceType: data.evidenceType,
   }
 }
 
@@ -44,6 +45,8 @@ export async function createSidequest(data: SideQuestInput, owner: UserProfile):
     assigneeDisplayName: null,
     assigneePending: false,
     completionPending: false,
+    evidenceData: null,
+    evidenceRejected: false,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
@@ -181,9 +184,15 @@ export async function completeSidequest(quest: SideQuest): Promise<void> {
   })
 }
 
-export async function requestCompletion(quest: SideQuest, assignee: UserProfile): Promise<void> {
+export async function requestCompletion(
+  quest: SideQuest,
+  assignee: UserProfile,
+  evidenceData: string | null = null
+): Promise<void> {
   await updateDoc(doc(db, 'sidequests', quest.id), {
     completionPending: true,
+    evidenceData,
+    evidenceRejected: false,
     updatedAt: serverTimestamp(),
   })
 
@@ -195,6 +204,26 @@ export async function requestCompletion(quest: SideQuest, assignee: UserProfile)
     sidequestId: quest.id,
     sidequestTitle: quest.title,
   })
+}
+
+export async function rejectEvidence(quest: SideQuest, owner: UserProfile): Promise<void> {
+  await updateDoc(doc(db, 'sidequests', quest.id), {
+    completionPending: false,
+    evidenceData: null,
+    evidenceRejected: true,
+    updatedAt: serverTimestamp(),
+  })
+
+  if (quest.assigneeId) {
+    await createNotification(quest.assigneeId, {
+      type: 'sidequest_evidence_rejected',
+      fromUserId: owner.uid,
+      fromUserDisplayName: owner.displayName,
+      fromUserPhotoURL: owner.photoURL,
+      sidequestId: quest.id,
+      sidequestTitle: quest.title,
+    })
+  }
 }
 
 export async function confirmCompletion(quest: SideQuest, owner: UserProfile): Promise<void> {

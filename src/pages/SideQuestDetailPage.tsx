@@ -9,6 +9,7 @@ import {
   completeSidequest,
   requestCompletion,
   confirmCompletion,
+  rejectEvidence,
   failSidequest,
   abandonSidequest,
   deleteSidequest,
@@ -25,9 +26,17 @@ import { Avatar } from '../components/ui/Avatar'
 import { SideQuestStatusBadge } from '../components/sidequests/SideQuestStatusBadge'
 import { ExpireCountdown } from '../components/sidequests/ExpireCountdown'
 import { AssignModal } from '../components/sidequests/AssignModal'
+import { CompleteModal } from '../components/sidequests/CompleteModal'
+import { ValidateModal } from '../components/sidequests/ValidateModal'
 import { formatDate } from '../utils/formatDate'
 import { isExpired } from '../utils/isExpired'
 import { toast } from '../components/ui/Toast'
+
+const evidenceLabels = {
+  none: null,
+  text: 'Requiere evidencia · Texto',
+  photo: 'Requiere evidencia · Foto',
+}
 
 export function SideQuestDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -40,6 +49,8 @@ export function SideQuestDetailPage() {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [assignModalOpen, setAssignModalOpen] = useState(false)
+  const [completeModalOpen, setCompleteModalOpen] = useState(false)
+  const [validateModalOpen, setValidateModalOpen] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -64,6 +75,7 @@ export function SideQuestDetailPage() {
 
   const isOwner = profile?.uid === quest.ownerId
   const isAssignee = profile?.uid === quest.assigneeId
+  const isSelfAssigned = quest.ownerId === quest.assigneeId
   const expired = isExpired(quest)
 
   async function withLoading(fn: () => Promise<void>) {
@@ -111,30 +123,42 @@ export function SideQuestDetailPage() {
     })
   }
 
-  const isSelfAssigned = quest.ownerId === quest.assigneeId
-
-  async function handleComplete() {
+  // Self-assigned: complete directly without modal
+  async function handleSelfComplete() {
     await withLoading(async () => {
-      if (!profile) return
-      if (isSelfAssigned) {
-        await completeSidequest(quest!)
-        setQuest({ ...quest!, status: 'complete', completionPending: false })
-        toast('¡Quest completada! 🎉', 'success')
-      } else {
-        await requestCompletion(quest!, profile)
-        setQuest({ ...quest!, completionPending: true })
-        toast('Solicitud de completado enviada al owner', 'success')
-      }
+      await completeSidequest(quest!)
+      setQuest({ ...quest!, status: 'complete', completionPending: false })
+      toast('¡Quest completada! 🎉', 'success')
     })
   }
 
+  // Non-self-assigned: CompleteModal calls this with evidence
+  async function handleRequestCompletion(evidenceData: string | null) {
+    if (!profile) return
+    await requestCompletion(quest!, profile, evidenceData)
+    const updated = await getSidequest(quest!.id)
+    setQuest(updated)
+    setCompleteModalOpen(false)
+    toast('Evidencia enviada. Esperando confirmación del owner.', 'success')
+  }
+
+  // Owner confirms via ValidateModal
   async function handleConfirmCompletion() {
-    await withLoading(async () => {
-      if (!profile) return
-      await confirmCompletion(quest!, profile)
-      setQuest({ ...quest!, status: 'complete', completionPending: false })
-      toast('¡Quest confirmada como completada! 🎉', 'success')
-    })
+    if (!profile) return
+    await confirmCompletion(quest!, profile)
+    setQuest({ ...quest!, status: 'complete', completionPending: false })
+    setValidateModalOpen(false)
+    toast('¡Quest confirmada como completada! 🎉', 'success')
+  }
+
+  // Owner rejects evidence via ValidateModal
+  async function handleRejectEvidence() {
+    if (!profile) return
+    await rejectEvidence(quest!, profile)
+    const updated = await getSidequest(quest!.id)
+    setQuest(updated)
+    setValidateModalOpen(false)
+    toast('Evidencia rechazada. El asignado deberá reenviar.', 'info')
   }
 
   async function handleFail() {
@@ -180,7 +204,8 @@ export function SideQuestDetailPage() {
             <SideQuestStatusBadge status={quest.status} />
             {quest.visibility === 'public' && <Badge variant="blue">Pública</Badge>}
             {quest.assigneePending && <Badge variant="purple">Pendiente de aceptación</Badge>}
-            {quest.completionPending && <Badge variant="warning">Completado pendiente de confirmación</Badge>}
+            {quest.completionPending && <Badge variant="warning">Esperando validación</Badge>}
+            {quest.evidenceRejected && !quest.completionPending && <Badge variant="danger">Evidencia rechazada</Badge>}
           </div>
           {isOwner && quest.status === 'incomplete' && (
             <div className="flex gap-2">
@@ -216,6 +241,16 @@ export function SideQuestDetailPage() {
           </div>
         </div>
 
+        {/* Evidence type indicator */}
+        {evidenceLabels[quest.evidenceType] && (
+          <div className="rounded-xl border border-purple-900/50 bg-purple-950/20 px-4 py-3 flex items-center gap-2">
+            <svg className="h-4 w-4 text-purple-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <p className="text-xs text-purple-300">{evidenceLabels[quest.evidenceType]}</p>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-4">
           <div>
             <p className="text-xs text-gray-500 mb-2">Creada por</p>
@@ -245,9 +280,11 @@ export function SideQuestDetailPage() {
               <Button onClick={() => setAssignModalOpen(true)}>Asignar a amigo</Button>
             )}
 
-            {/* Owner: confirm completion requested by assignee */}
+            {/* Owner: validate completion sent by assignee */}
             {isOwner && !isSelfAssigned && quest.completionPending && (
-              <Button onClick={handleConfirmCompletion} loading={actionLoading}>Confirmar completado</Button>
+              <Button onClick={() => setValidateModalOpen(true)} loading={actionLoading}>
+                Validar completado
+              </Button>
             )}
 
             {/* Assignee pending actions */}
@@ -262,10 +299,14 @@ export function SideQuestDetailPage() {
             {isAssignee && !quest.assigneePending && (
               <>
                 {isSelfAssigned ? (
-                  <Button onClick={handleComplete} loading={actionLoading}>Marcar como completada</Button>
+                  <Button onClick={handleSelfComplete} loading={actionLoading}>
+                    Marcar como completada
+                  </Button>
                 ) : (
                   !quest.completionPending && (
-                    <Button onClick={handleComplete} loading={actionLoading}>Solicitar completado</Button>
+                    <Button onClick={() => setCompleteModalOpen(true)}>
+                      {quest.evidenceRejected ? 'Reenviar evidencia' : 'Completar'}
+                    </Button>
                   )
                 )}
                 <Button variant="danger" onClick={handleFail} loading={actionLoading}>Marcar como fallada</Button>
@@ -290,6 +331,21 @@ export function SideQuestDetailPage() {
           onAssign={handleAssign}
         />
       )}
+
+      <CompleteModal
+        open={completeModalOpen}
+        onClose={() => setCompleteModalOpen(false)}
+        quest={quest}
+        onSubmit={handleRequestCompletion}
+      />
+
+      <ValidateModal
+        open={validateModalOpen}
+        onClose={() => setValidateModalOpen(false)}
+        quest={quest}
+        onConfirm={handleConfirmCompletion}
+        onReject={handleRejectEvidence}
+      />
     </div>
   )
 }

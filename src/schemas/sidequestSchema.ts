@@ -8,6 +8,7 @@ export const sidequestSchema = z
     isEternal: z.boolean(),
     expiresAt: z.string().nullable(),
     visibility: z.enum(['public', 'private']),
+    evidenceType: z.enum(['none', 'photo', 'text']),
   })
   .superRefine((data, ctx) => {
     if (!data.isEternal && !data.expiresAt) {

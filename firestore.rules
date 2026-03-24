@@ -53,7 +53,7 @@ service cloud.firestore {
         (
           isOwner(resource.data.assigneeId) &&
           request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['status', 'assigneePending', 'completionPending', 'updatedAt'])
+            .hasOnly(['status', 'assigneePending', 'completionPending', 'evidenceData', 'evidenceRejected', 'updatedAt'])
         )
       );
 

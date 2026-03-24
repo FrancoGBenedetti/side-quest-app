@@ -2,6 +2,7 @@ import { Timestamp } from 'firebase/firestore'
 
 export type SideQuestStatus = 'incomplete' | 'complete' | 'failed'
 export type SideQuestVisibility = 'public' | 'private'
+export type EvidenceType = 'none' | 'photo' | 'text'
 
 export interface SideQuest {
   id: string
@@ -18,6 +19,9 @@ export interface SideQuest {
   assigneeDisplayName: string | null
   assigneePending: boolean
   completionPending: boolean
+  evidenceType: EvidenceType
+  evidenceData: string | null
+  evidenceRejected: boolean
   visibility: SideQuestVisibility
   createdAt: Timestamp
   updatedAt: Timestamp

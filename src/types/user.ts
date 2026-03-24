@@ -26,6 +26,7 @@ export interface Notification {
     | 'sidequest_completion_requested'
     | 'sidequest_completed'
     | 'sidequest_failed'
+    | 'sidequest_evidence_rejected'
   fromUserId: string
   fromUserDisplayName: string
   fromUserPhotoURL: string | null
