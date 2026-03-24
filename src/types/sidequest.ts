@@ -17,6 +17,7 @@ export interface SideQuest {
   assigneeId: string | null
   assigneeDisplayName: string | null
   assigneePending: boolean
+  completionPending: boolean
   visibility: SideQuestVisibility
   createdAt: Timestamp
   updatedAt: Timestamp

@@ -7,6 +7,8 @@ import {
   rejectAssignment,
   takeSidequest,
   completeSidequest,
+  requestCompletion,
+  confirmCompletion,
   failSidequest,
   abandonSidequest,
   deleteSidequest,
@@ -109,12 +111,29 @@ export function SideQuestDetailPage() {
     })
   }
 
+  const isSelfAssigned = quest.ownerId === quest.assigneeId
+
   async function handleComplete() {
     await withLoading(async () => {
       if (!profile) return
-      await completeSidequest(quest!, profile)
-      setQuest({ ...quest!, status: 'complete' })
-      toast('¡Quest completada! 🎉', 'success')
+      if (isSelfAssigned) {
+        await completeSidequest(quest!)
+        setQuest({ ...quest!, status: 'complete', completionPending: false })
+        toast('¡Quest completada! 🎉', 'success')
+      } else {
+        await requestCompletion(quest!, profile)
+        setQuest({ ...quest!, completionPending: true })
+        toast('Solicitud de completado enviada al owner', 'success')
+      }
+    })
+  }
+
+  async function handleConfirmCompletion() {
+    await withLoading(async () => {
+      if (!profile) return
+      await confirmCompletion(quest!, profile)
+      setQuest({ ...quest!, status: 'complete', completionPending: false })
+      toast('¡Quest confirmada como completada! 🎉', 'success')
     })
   }
 
@@ -161,6 +180,7 @@ export function SideQuestDetailPage() {
             <SideQuestStatusBadge status={quest.status} />
             {quest.visibility === 'public' && <Badge variant="blue">Pública</Badge>}
             {quest.assigneePending && <Badge variant="purple">Pendiente de aceptación</Badge>}
+            {quest.completionPending && <Badge variant="warning">Completado pendiente de confirmación</Badge>}
           </div>
           {isOwner && quest.status === 'incomplete' && (
             <div className="flex gap-2">
@@ -220,9 +240,14 @@ export function SideQuestDetailPage() {
         {/* Action area */}
         {quest.status === 'incomplete' && !expired && (
           <div className="flex flex-wrap gap-3 pt-2 border-t border-gray-800">
-            {/* Owner actions */}
+            {/* Owner: assign */}
             {isOwner && !quest.assigneeId && (
               <Button onClick={() => setAssignModalOpen(true)}>Asignar a amigo</Button>
+            )}
+
+            {/* Owner: confirm completion requested by assignee */}
+            {isOwner && !isSelfAssigned && quest.completionPending && (
+              <Button onClick={handleConfirmCompletion} loading={actionLoading}>Confirmar completado</Button>
             )}
 
             {/* Assignee pending actions */}
@@ -236,7 +261,13 @@ export function SideQuestDetailPage() {
             {/* Assignee active actions */}
             {isAssignee && !quest.assigneePending && (
               <>
-                <Button onClick={handleComplete} loading={actionLoading}>Marcar como completada</Button>
+                {isSelfAssigned ? (
+                  <Button onClick={handleComplete} loading={actionLoading}>Marcar como completada</Button>
+                ) : (
+                  !quest.completionPending && (
+                    <Button onClick={handleComplete} loading={actionLoading}>Solicitar completado</Button>
+                  )
+                )}
                 <Button variant="danger" onClick={handleFail} loading={actionLoading}>Marcar como fallada</Button>
                 <Button variant="ghost" onClick={handleAbandon} loading={actionLoading}>Abandonar</Button>
               </>

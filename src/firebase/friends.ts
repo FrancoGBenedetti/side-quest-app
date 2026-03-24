@@ -112,10 +112,7 @@ export async function rejectFriendRequest(
 ): Promise<void> {
   const batch = writeBatch(db)
 
-  batch.update(doc(db, 'friendRequests', requestId), {
-    status: 'rejected',
-    updatedAt: serverTimestamp(),
-  })
+  batch.delete(doc(db, 'friendRequests', requestId))
 
   batch.update(doc(db, 'users', toUser.uid), {
     pendingRequestIds: arrayRemove(fromUserId),

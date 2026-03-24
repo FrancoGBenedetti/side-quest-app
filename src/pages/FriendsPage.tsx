@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useFriends } from '../hooks/useFriends'
 import { useAuth } from '../hooks/useAuth'
 import { searchUsers, getUsersByIds } from '../firebase/users'
@@ -20,7 +21,9 @@ type Tab = 'friends' | 'requests' | 'search'
 export function FriendsPage() {
   const { profile } = useAuth()
   const { friends, pendingRequests, loadingFriends } = useFriends()
-  const [tab, setTab] = useState<Tab>('friends')
+  const [searchParams] = useSearchParams()
+  const initialTab = (searchParams.get('tab') as Tab) ?? 'friends'
+  const [tab, setTab] = useState<Tab>(initialTab)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<UserProfile[]>([])
   const [searching, setSearching] = useState(false)

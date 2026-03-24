@@ -43,6 +43,7 @@ export async function createSidequest(data: SideQuestInput, owner: UserProfile):
     assigneeId: null,
     assigneeDisplayName: null,
     assigneePending: false,
+    completionPending: false,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
@@ -172,18 +173,43 @@ export async function takeSidequest(quest: SideQuest, taker: UserProfile): Promi
   }
 }
 
-export async function completeSidequest(quest: SideQuest, assignee: UserProfile): Promise<void> {
+export async function completeSidequest(quest: SideQuest): Promise<void> {
   await updateDoc(doc(db, 'sidequests', quest.id), {
     status: 'complete',
+    completionPending: false,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function requestCompletion(quest: SideQuest, assignee: UserProfile): Promise<void> {
+  await updateDoc(doc(db, 'sidequests', quest.id), {
+    completionPending: true,
     updatedAt: serverTimestamp(),
   })
 
-  if (quest.ownerId !== assignee.uid) {
-    await createNotification(quest.ownerId, {
+  await createNotification(quest.ownerId, {
+    type: 'sidequest_completion_requested',
+    fromUserId: assignee.uid,
+    fromUserDisplayName: assignee.displayName,
+    fromUserPhotoURL: assignee.photoURL,
+    sidequestId: quest.id,
+    sidequestTitle: quest.title,
+  })
+}
+
+export async function confirmCompletion(quest: SideQuest, owner: UserProfile): Promise<void> {
+  await updateDoc(doc(db, 'sidequests', quest.id), {
+    status: 'complete',
+    completionPending: false,
+    updatedAt: serverTimestamp(),
+  })
+
+  if (quest.assigneeId && quest.assigneeId !== owner.uid) {
+    await createNotification(quest.assigneeId, {
       type: 'sidequest_completed',
-      fromUserId: assignee.uid,
-      fromUserDisplayName: assignee.displayName,
-      fromUserPhotoURL: assignee.photoURL,
+      fromUserId: owner.uid,
+      fromUserDisplayName: owner.displayName,
+      fromUserPhotoURL: owner.photoURL,
       sidequestId: quest.id,
       sidequestTitle: quest.title,
     })

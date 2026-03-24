@@ -17,9 +17,12 @@ service cloud.firestore {
       allow create: if isOwner(userId)
         && request.resource.data.uid == userId;
 
-      allow update: if isOwner(userId)
-        && !request.resource.data.diff(resource.data).affectedKeys()
-             .hasAny(['uid', 'createdAt', 'email']);
+      allow update: if (isOwner(userId)
+          && !request.resource.data.diff(resource.data).affectedKeys()
+               .hasAny(['uid', 'createdAt', 'email']))
+        || (isSignedIn()
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['pendingRequestIds', 'sentRequestIds', 'friendIds', 'updatedAt']));
 
       allow delete: if false;
 
@@ -50,7 +53,7 @@ service cloud.firestore {
         (
           isOwner(resource.data.assigneeId) &&
           request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['status', 'assigneePending', 'updatedAt'])
+            .hasOnly(['status', 'assigneePending', 'completionPending', 'updatedAt'])
         )
       );
 

@@ -23,6 +23,7 @@ export interface Notification {
     | 'sidequest_assigned'
     | 'sidequest_accepted'
     | 'sidequest_rejected'
+    | 'sidequest_completion_requested'
     | 'sidequest_completed'
     | 'sidequest_failed'
   fromUserId: string

@@ -21,7 +21,8 @@ export function NotificationBell() {
     sidequest_assigned: 'te asignó una sidequest',
     sidequest_accepted: 'aceptó tu sidequest',
     sidequest_rejected: 'rechazó tu sidequest',
-    sidequest_completed: 'completó tu sidequest',
+    sidequest_completion_requested: 'solicita confirmar el completado de',
+    sidequest_completed: 'confirmó el completado de tu sidequest',
     sidequest_failed: 'falló tu sidequest',
   }
 
@@ -29,7 +30,8 @@ export function NotificationBell() {
     if (!user) return
     if (!notif.read) await markNotificationRead(user.uid, notif.id)
     if (notif.sidequestId) navigate(`/quests/${notif.sidequestId}`)
-    else if (notif.type === 'friend_request' || notif.type === 'friend_accepted') navigate('/friends')
+    else if (notif.type === 'friend_request') navigate('/friends?tab=requests')
+    else if (notif.type === 'friend_accepted') navigate('/friends')
     setOpen(false)
   }
 
