@@ -1,4 +1,5 @@
-import { NavLink } from 'react-router-dom'
+import { useEffect } from 'react'
+import { NavLink, useLocation } from 'react-router-dom'
 import { cn } from '../../utils/cn'
 import { useNotifications } from '../../hooks/useNotifications'
 import { useFriends } from '../../hooks/useFriends'
@@ -46,12 +47,16 @@ const navItems = [
   },
 ]
 
-export function Sidebar() {
-  useNotifications()
+interface Props {
+  open: boolean
+  onClose: () => void
+}
+
+function SidebarContent({ onLinkClick }: { onLinkClick?: () => void }) {
   const { pendingRequests } = useFriends()
 
   return (
-    <aside className="hidden lg:flex lg:flex-col w-56 bg-gray-950 border-r border-gray-800 h-full">
+    <>
       <div className="flex items-center gap-3 px-6 py-5 border-b border-gray-800">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-600">
           <span className="text-sm font-bold text-white">SQ</span>
@@ -65,6 +70,7 @@ export function Sidebar() {
             key={item.to}
             to={item.to}
             end={item.to === '/'}
+            onClick={onLinkClick}
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
@@ -84,6 +90,55 @@ export function Sidebar() {
           </NavLink>
         ))}
       </nav>
-    </aside>
+    </>
+  )
+}
+
+export function Sidebar({ open, onClose }: Props) {
+  useNotifications()
+  const location = useLocation()
+
+  // Close mobile sidebar on navigation
+  useEffect(() => {
+    onClose()
+  }, [location.pathname])
+
+  return (
+    <>
+      {/* ── Desktop static sidebar ── */}
+      <aside className="hidden lg:flex lg:flex-col w-56 bg-gray-950 border-r border-gray-800 h-full">
+        <SidebarContent />
+      </aside>
+
+      {/* ── Mobile backdrop ── */}
+      <div
+        className={cn(
+          'fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-300 lg:hidden',
+          open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        )}
+        onClick={onClose}
+      />
+
+      {/* ── Mobile drawer ── */}
+      <div
+        className={cn(
+          'fixed inset-y-0 left-0 z-50 flex flex-col w-64 bg-gray-950 border-r border-gray-800 transform transition-transform duration-300 ease-in-out lg:hidden',
+          open ? 'translate-x-0' : '-translate-x-full'
+        )}
+      >
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 rounded-lg p-1.5 text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"
+          aria-label="Cerrar menú"
+        >
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        <SidebarContent onLinkClick={onClose} />
+      </div>
+    </>
   )
 }

@@ -6,7 +6,11 @@ import { NotificationBell } from '../notifications/NotificationBell'
 import { useState } from 'react'
 import { toast } from '../ui/Toast'
 
-export function Topbar() {
+interface Props {
+  onMenuClick: () => void
+}
+
+export function Topbar({ onMenuClick }: Props) {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const [userMenuOpen, setUserMenuOpen] = useState(false)
@@ -19,7 +23,16 @@ export function Topbar() {
 
   return (
     <header className="flex h-14 items-center justify-between border-b border-gray-800 bg-gray-950 px-4 lg:px-6">
-      <div className="flex items-center gap-2 lg:hidden">
+      <div className="flex items-center gap-3 lg:hidden">
+        <button
+          onClick={onMenuClick}
+          className="rounded-lg p-2 text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"
+          aria-label="Abrir menú"
+        >
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
         <span className="text-lg font-bold text-purple-400">SideQuest</span>
       </div>
 
