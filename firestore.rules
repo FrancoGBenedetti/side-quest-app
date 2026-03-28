@@ -40,24 +40,48 @@ service cloud.firestore {
       allow read: if isSignedIn() && (
         resource.data.visibility == 'public' ||
         isOwner(resource.data.ownerId) ||
-        isOwner(resource.data.assigneeId)
+        exists(/databases/$(database)/documents/sidequests/$(sidequestId)/subscriptions/$(request.auth.uid))
       );
 
       allow create: if isSignedIn()
         && request.resource.data.ownerId == request.auth.uid
-        && request.resource.data.status == 'incomplete'
-        && request.resource.data.assigneePending == false;
+        && request.resource.data.status == 'open';
 
-      allow update: if isSignedIn() && (
-        isOwner(resource.data.ownerId) ||
-        (
-          isOwner(resource.data.assigneeId) &&
-          request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['status', 'assigneePending', 'completionPending', 'evidenceData', 'evidenceRejected', 'updatedAt'])
-        )
-      );
+      // Solo el owner puede modificar el documento del quest
+      allow update: if isSignedIn() && isOwner(resource.data.ownerId);
 
       allow delete: if isSignedIn() && isOwner(resource.data.ownerId);
+
+      // ── Subscriptions subcollection ─────────────────────────────────────
+      match /subscriptions/{subscriberId} {
+        // Owner del quest o el propio suscriptor pueden leer.
+        // Usamos resource.data.userId (no el doc ID) para que el collectionGroup
+        // query del Dashboard pueda verificar el permiso estáticamente.
+        allow read: if isSignedIn() && (
+          isOwner(get(/databases/$(database)/documents/sidequests/$(sidequestId)).data.ownerId) ||
+          isOwner(resource.data.userId)
+        );
+
+        // El propio usuario (auto-suscripción) O el owner del quest (invitación)
+        allow create: if isSignedIn() && (
+          isOwner(subscriberId) ||
+          isOwner(get(/databases/$(database)/documents/sidequests/$(sidequestId)).data.ownerId)
+        );
+
+        // Owner del quest O el propio suscriptor (campos limitados)
+        allow update: if isSignedIn() && (
+          isOwner(get(/databases/$(database)/documents/sidequests/$(sidequestId)).data.ownerId) ||
+          (isOwner(resource.data.userId) &&
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status', 'completionPending', 'evidenceData', 'evidenceRejected', 'updatedAt']))
+        );
+
+        // Suscriptor (abandon/reject) O owner del quest (removeSubscriber)
+        allow delete: if isSignedIn() && (
+          isOwner(resource.data.userId) ||
+          isOwner(get(/databases/$(database)/documents/sidequests/$(sidequestId)).data.ownerId)
+        );
+      }
     }
 
     // ─── Friend requests ─────────────────────────────────────────────────────

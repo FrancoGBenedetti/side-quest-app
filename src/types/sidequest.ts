@@ -1,6 +1,7 @@
-import { Timestamp } from 'firebase/firestore'
+import type { Timestamp } from 'firebase/firestore'
 
-export type SideQuestStatus = 'incomplete' | 'complete' | 'failed'
+/** 'open' = acepta suscriptores; 'closed' = lleno o cerrado por el owner */
+export type SideQuestStatus = 'open' | 'closed'
 export type SideQuestVisibility = 'public' | 'private'
 export type EvidenceType = 'none' | 'photo' | 'text'
 
@@ -15,13 +16,15 @@ export interface SideQuest {
   ownerId: string
   ownerDisplayName: string
   ownerPhotoURL: string | null
-  assigneeId: string | null
-  assigneeDisplayName: string | null
-  assigneePending: boolean
-  completionPending: boolean
+
+  /** null = ilimitado */
+  maxSubscribers: number | null
+  /** Contadores denormalizados — actualizados vía transaction/batch */
+  subscribersCount: number
+  completedCount: number
+  failedCount: number
+
   evidenceType: EvidenceType
-  evidenceData: string | null
-  evidenceRejected: boolean
   visibility: SideQuestVisibility
   createdAt: Timestamp
   updatedAt: Timestamp

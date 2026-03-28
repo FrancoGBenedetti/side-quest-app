@@ -5,6 +5,7 @@ import { Input, Textarea } from '../ui/Input'
 import { Button } from '../ui/Button'
 import type { SideQuest } from '../../types/sidequest'
 import { Timestamp } from 'firebase/firestore'
+import { QUEST_CONFIG } from '../../config/questConfig'
 
 interface Props {
   onSubmit: (data: SideQuestInput) => Promise<void>
@@ -35,11 +36,13 @@ export function SideQuestForm({ onSubmit, defaultValues, submitLabel = 'Crear Qu
       expiresAt: toInputDate(defaultValues?.expiresAt),
       visibility: defaultValues?.visibility ?? 'private',
       evidenceType: defaultValues?.evidenceType ?? 'none',
+      maxSubscribers: defaultValues?.maxSubscribers ?? QUEST_CONFIG.defaultMaxSubscribers,
     },
   })
 
   const isEternal = watch('isEternal')
   const evidenceType = watch('evidenceType')
+  const maxSubscribers = watch('maxSubscribers')
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
@@ -138,6 +141,41 @@ export function SideQuestForm({ onSubmit, defaultValues, submitLabel = 'Crear Qu
         )}
         {evidenceType === 'text' && (
           <p className="text-xs text-purple-400 mt-1">El asignado deberá escribir un texto como prueba.</p>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-sm font-medium text-gray-300">Límite de suscriptores</label>
+        <p className="text-xs text-gray-500 mb-1">¿Cuántas personas pueden tomar esta quest?</p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setValue('maxSubscribers', null, { shouldValidate: true })}
+            className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+              maxSubscribers === null
+                ? 'border-purple-500 bg-purple-600/20 text-purple-300'
+                : 'border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white'
+            }`}
+          >
+            Ilimitado
+          </button>
+          {QUEST_CONFIG.subscriberOptions.map((n) => (
+            <button
+              type="button"
+              key={n}
+              onClick={() => setValue('maxSubscribers', n, { shouldValidate: true })}
+              className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+                maxSubscribers === n
+                  ? 'border-purple-500 bg-purple-600/20 text-purple-300'
+                  : 'border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white'
+              }`}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+        {errors.maxSubscribers && (
+          <p className="text-xs text-red-400">{errors.maxSubscribers.message}</p>
         )}
       </div>
 

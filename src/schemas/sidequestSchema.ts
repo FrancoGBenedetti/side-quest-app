@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { QUEST_CONFIG } from '../config/questConfig'
 
 export const sidequestSchema = z
   .object({
@@ -9,6 +10,16 @@ export const sidequestSchema = z
     expiresAt: z.string().nullable(),
     visibility: z.enum(['public', 'private']),
     evidenceType: z.enum(['none', 'photo', 'text']),
+    /**
+     * null = ilimitado
+     * number = 1..QUEST_CONFIG.maxAllowed
+     */
+    maxSubscribers: z
+      .number()
+      .int()
+      .min(1, 'Mínimo 1 suscriptor')
+      .max(QUEST_CONFIG.maxAllowed, `Máximo ${QUEST_CONFIG.maxAllowed} suscriptores`)
+      .nullable(),
   })
   .superRefine((data, ctx) => {
     if (!data.isEternal && !data.expiresAt) {
