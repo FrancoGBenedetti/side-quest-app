@@ -22,6 +22,8 @@ export interface QuestSubscription {
   completionPending: boolean
   evidenceData: string | null
   evidenceRejected: boolean
+  /** Calificación 1-5 asignada por el owner al confirmar. null = sin calificación */
+  rating: number | null
 
   joinedAt: Timestamp
   updatedAt: Timestamp

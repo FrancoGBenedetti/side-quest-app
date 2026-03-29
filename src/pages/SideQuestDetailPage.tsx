@@ -169,9 +169,9 @@ export function SideQuestDetailPage() {
     toast('Evidencia enviada. Esperando confirmación del owner.', 'success')
   }
 
-  async function handleConfirmCompletion() {
+  async function handleConfirmCompletion(rating: number | null) {
     if (!validateTarget) return
-    await confirmCompletion(quest!.id, validateTarget, profile!)
+    await confirmCompletion(quest!, validateTarget, profile!, rating)
     await refreshQuest()
     setValidateTarget(null)
     toast('¡Completado confirmado! 🎉', 'success')

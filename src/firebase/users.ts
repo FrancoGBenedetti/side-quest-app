@@ -12,7 +12,7 @@ import {
   limit,
 } from 'firebase/firestore'
 import { db } from './config'
-import type { UserProfile } from '../types/user'
+import type { UserProfile, CompletedQuestEntry } from '../types/user'
 
 interface CreateUserProfileData {
   uid: string
@@ -38,6 +38,7 @@ export async function createUserProfile(data: CreateUserProfileData): Promise<vo
     pendingRequestIds: [],
     sentRequestIds: [],
     notificationCount: 0,
+    completedQuestsCount: 0,
   })
 }
 
@@ -75,4 +76,13 @@ export async function getUsersByIds(uids: string[]): Promise<UserProfile[]> {
   if (!uids.length) return []
   const profiles = await Promise.all(uids.map((uid) => getUserProfile(uid)))
   return profiles.filter(Boolean) as UserProfile[]
+}
+
+export async function getCompletedQuests(uid: string): Promise<CompletedQuestEntry[]> {
+  const q = query(
+    collection(db, 'users', uid, 'completedQuests'),
+    orderBy('completedAt', 'desc')
+  )
+  const snap = await getDocs(q)
+  return snap.docs.map((d) => d.data() as CompletedQuestEntry)
 }

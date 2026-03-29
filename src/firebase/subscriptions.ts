@@ -1,6 +1,7 @@
 import {
   doc,
   getDoc,
+  setDoc,
   updateDoc,
   collection,
   collectionGroup,
@@ -240,20 +241,46 @@ export async function requestCompletion(
 
 /** Owner confirma completado de un suscriptor específico */
 export async function confirmCompletion(
-  questId: string,
+  quest: import('../types/sidequest').SideQuest,
   subscription: QuestSubscription,
-  owner: UserProfile
+  owner: UserProfile,
+  rating: number | null
 ): Promise<void> {
   const batch = writeBatch(db)
-  batch.update(subRef(questId, subscription.userId), {
+
+  // 1. Actualizar la subscription
+  batch.update(subRef(quest.id, subscription.userId), {
     status: 'complete' as SubscriptionStatus,
     completionPending: false,
+    rating,
     updatedAt: serverTimestamp(),
   })
-  batch.update(questRef(questId), {
+
+  // 2. Incrementar completedCount del quest
+  batch.update(questRef(quest.id), {
     completedCount: increment(1),
     updatedAt: serverTimestamp(),
   })
+
+  // 3. Guardar en el historial de quests completadas del usuario
+  const completedQuestRef = doc(db, 'users', subscription.userId, 'completedQuests', quest.id)
+  batch.set(completedQuestRef, {
+    questId: quest.id,
+    questTitle: subscription.questTitle,
+    questReward: subscription.questReward,
+    questOwnerId: subscription.questOwnerId,
+    questOwnerDisplayName: subscription.questOwnerDisplayName,
+    tags: quest.tags ?? [],
+    evidenceType: subscription.questEvidenceType,
+    rating,
+    completedAt: serverTimestamp(),
+  })
+
+  // 4. Incrementar contador en el perfil del usuario
+  batch.update(doc(db, 'users', subscription.userId), {
+    completedQuestsCount: increment(1),
+  })
+
   await batch.commit()
 
   await createNotification(subscription.userId, {
@@ -261,7 +288,7 @@ export async function confirmCompletion(
     fromUserId: owner.uid,
     fromUserDisplayName: owner.displayName,
     fromUserPhotoURL: owner.photoURL,
-    sidequestId: questId,
+    sidequestId: quest.id,
     sidequestTitle: subscription.questTitle,
   })
 }

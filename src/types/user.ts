@@ -1,4 +1,5 @@
 import { Timestamp } from 'firebase/firestore'
+import type { EvidenceType } from './sidequest'
 
 export interface UserProfile {
   uid: string
@@ -12,6 +13,26 @@ export interface UserProfile {
   pendingRequestIds: string[]
   sentRequestIds: string[]
   notificationCount: number
+  /** Contador de quests completadas (denormalizado para el perfil) */
+  completedQuestsCount?: number
+}
+
+/**
+ * Entrada en la subcollección users/{uid}/completedQuests/{questId}.
+ * Escrita por el owner al confirmar el completado.
+ */
+export interface CompletedQuestEntry {
+  questId: string
+  questTitle: string
+  questReward: string
+  questOwnerId: string
+  questOwnerDisplayName: string
+  /** IDs de categorías del quest al momento de completarlo */
+  tags: string[]
+  evidenceType: EvidenceType
+  /** Calificación 1-5 asignada por el owner, null si no calificó */
+  rating: number | null
+  completedAt: Timestamp
 }
 
 export interface Notification {
