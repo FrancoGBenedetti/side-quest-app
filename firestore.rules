@@ -52,19 +52,24 @@ service cloud.firestore {
         && request.resource.data.ownerId == request.auth.uid
         && request.resource.data.status == 'open';
 
-      // Solo el owner puede modificar el documento del quest
-      allow update: if isSignedIn() && isOwner(resource.data.ownerId);
+      // Solo el owner puede modificar el documento completo del quest.
+      // Cualquier usuario autenticado puede actualizar el contador al suscribirse/desuscribirse.
+      allow update: if isSignedIn() && (
+        isOwner(resource.data.ownerId) ||
+        (
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['subscribersCount', 'status', 'updatedAt'])
+        )
+      );
 
       allow delete: if isSignedIn() && isOwner(resource.data.ownerId);
 
       // ── Subscriptions subcollection ─────────────────────────────────────
       match /subscriptions/{subscriberId} {
-        // Owner del quest o el propio suscriptor pueden leer.
-        // Usamos resource.data.userId (no el doc ID) para que el collectionGroup
-        // query del Dashboard pueda verificar el permiso estáticamente.
+        // Query de lectura
         allow read: if isSignedIn() && (
           isOwner(get(/databases/$(database)/documents/sidequests/$(sidequestId)).data.ownerId) ||
-          isOwner(resource.data.userId)
+          isOwner(subscriberId)
         );
 
         // El propio usuario (auto-suscripción) O el owner del quest (invitación)
