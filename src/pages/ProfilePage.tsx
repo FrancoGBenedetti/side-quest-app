@@ -10,11 +10,13 @@ import { Button } from '../components/ui/Button'
 import { Avatar } from '../components/ui/Avatar'
 import { toast } from '../components/ui/Toast'
 import { useSidequests } from '../hooks/useSidequests'
+import { useSubscriptions } from '../hooks/useSubscriptions'
 
 export function ProfilePage() {
   const { user, profile } = useAuth()
   const { setProfile } = useAuthStore()
-  const { ownedSidequests, assignedSidequests } = useSidequests()
+  const { ownedSidequests } = useSidequests()
+  const { subscriptions } = useSubscriptions()
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<ProfileInput>({
     resolver: zodResolver(profileSchema),
@@ -36,8 +38,8 @@ export function ProfilePage() {
     }
   }
 
-  const completedQuests = ownedSidequests.filter((q) => q.status === 'complete').length
-  const assignedCompleted = assignedSidequests.filter((q) => q.status === 'complete' && q.ownerId !== user?.uid).length
+  const completedQuests = subscriptions.filter((s) => s.status === 'complete').length
+  const assignedActive = subscriptions.filter((s) => s.status === 'active' || s.status === 'pending').length
 
   return (
     <div className="mx-auto max-w-xl px-4 py-8 space-y-6">
@@ -48,7 +50,7 @@ export function ProfilePage() {
         {[
           { label: 'Quests creadas', value: ownedSidequests.length },
           { label: 'Completadas', value: completedQuests },
-          { label: 'Como responsable', value: assignedCompleted },
+          { label: 'Como responsable', value: assignedActive },
         ].map((stat) => (
           <div key={stat.label} className="rounded-xl border border-gray-800 bg-gray-900 p-4 text-center">
             <p className="text-2xl font-bold text-purple-400">{stat.value}</p>
