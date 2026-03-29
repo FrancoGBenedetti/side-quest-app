@@ -10,6 +10,11 @@ service cloud.firestore {
       return request.auth.uid == userId;
     }
 
+    // ─── Collection Group Queries ────────────────────────────────────────────
+    match /{path=**}/subscriptions/{subscriberId} {
+      allow read: if isSignedIn() && isOwner(resource.data.userId);
+    }
+
     // ─── Users ───────────────────────────────────────────────────────────────
     match /users/{userId} {
       allow read: if isSignedIn();

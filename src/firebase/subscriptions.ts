@@ -347,7 +347,7 @@ export function subscribeToUserSubscriptions(
   const q = query(
     collectionGroup(db, 'subscriptions'),
     where('userId', '==', userId),
-    where('status', 'in', ['pending', 'active']),
+    where('status', 'in', ['pending', 'active', 'complete', 'failed']),
     orderBy('joinedAt', 'desc')
   )
   return onSnapshot(q, (snap) => {
