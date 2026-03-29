@@ -11,6 +11,10 @@ export function DashboardPage() {
   const { ownedSidequests } = useSidequests()
   const { subscriptions, loading: subsLoading } = useSubscriptions()
 
+  const activeSubscriptions = subscriptions.filter(
+    (s) => s.status === 'active' || s.status === 'pending'
+  )
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 space-y-10">
       <div className="flex items-center justify-between">
@@ -54,14 +58,14 @@ export function DashboardPage() {
         <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
           <span>🎯</span>
           Mis Participaciones
-          <span className="text-sm font-normal text-gray-500">({subscriptions.length})</span>
+          <span className="text-sm font-normal text-gray-500">({activeSubscriptions.length})</span>
         </h2>
 
         {subsLoading ? (
           <div className="flex justify-center py-8">
             <Spinner size="lg" className="text-purple-500" />
           </div>
-        ) : subscriptions.length === 0 ? (
+        ) : activeSubscriptions.length === 0 ? (
           <div className="rounded-xl border border-gray-800 bg-gray-900 p-6 text-center text-sm text-gray-500">
             No tienes quests asignadas.{' '}
             <Link to="/explore" className="text-purple-400 hover:text-purple-300">
@@ -70,7 +74,7 @@ export function DashboardPage() {
           </div>
         ) : (
           <ul className="flex flex-col gap-3">
-            {subscriptions.map((sub) => (
+            {activeSubscriptions.map((sub) => (
               <li key={sub.questId}>
                 <Link
                   to={`/quests/${sub.questId}`}
