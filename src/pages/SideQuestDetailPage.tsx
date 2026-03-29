@@ -1,29 +1,30 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
+import { getSidequest, deleteSidequest } from '../firebase/sidequests'
 import {
-  getSidequest,
-  assignSidequest,
-  acceptAssignment,
-  rejectAssignment,
-  takeSidequest,
-  completeSidequest,
+  getSubscription,
+  subscribeToQuestSubscriptions,
+  takeQuest,
+  inviteToQuest,
+  acceptSubscription,
+  rejectSubscription,
   requestCompletion,
   confirmCompletion,
   rejectEvidence,
-  failSidequest,
-  abandonSidequest,
-  deleteSidequest,
-} from '../firebase/sidequests'
-import { getUserProfile } from '../firebase/users'
+  failSubscription,
+  abandonSubscription,
+  removeSubscriber,
+} from '../firebase/subscriptions'
 import { useAuth } from '../hooks/useAuth'
 import { useFriends } from '../hooks/useFriends'
 import type { SideQuest } from '../types/sidequest'
+import type { QuestSubscription } from '../types/subscription'
 import type { UserProfile } from '../types/user'
 import { Spinner } from '../components/ui/Spinner'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Avatar } from '../components/ui/Avatar'
-import { SideQuestStatusBadge } from '../components/sidequests/SideQuestStatusBadge'
+import { SideQuestStatusBadge, SubscriptionStatusBadge } from '../components/sidequests/SideQuestStatusBadge'
 import { ExpireCountdown } from '../components/sidequests/ExpireCountdown'
 import { AssignModal } from '../components/sidequests/AssignModal'
 import { CompleteModal } from '../components/sidequests/CompleteModal'
@@ -45,13 +46,16 @@ export function SideQuestDetailPage() {
   const navigate = useNavigate()
 
   const [quest, setQuest] = useState<SideQuest | null>(null)
-  const [assigneeProfile, setAssigneeProfile] = useState<UserProfile | null>(null)
+  const [mySubscription, setMySubscription] = useState<QuestSubscription | null>(null)
+  const [allSubscriptions, setAllSubscriptions] = useState<QuestSubscription[]>([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
+  const [validateTarget, setValidateTarget] = useState<QuestSubscription | null>(null)
+
   const [assignModalOpen, setAssignModalOpen] = useState(false)
   const [completeModalOpen, setCompleteModalOpen] = useState(false)
-  const [validateModalOpen, setValidateModalOpen] = useState(false)
 
+  // ── Cargar quest ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!id) return
     getSidequest(id).then((q) => {
@@ -60,10 +64,19 @@ export function SideQuestDetailPage() {
     })
   }, [id])
 
+  // ── Cargar mi subscription ──────────────────────────────────────────────────
   useEffect(() => {
-    if (!quest?.assigneeId) { setAssigneeProfile(null); return }
-    getUserProfile(quest.assigneeId).then(setAssigneeProfile)
-  }, [quest?.assigneeId])
+    if (!id || !profile) return
+    getSubscription(id, profile.uid).then(setMySubscription)
+  }, [id, profile?.uid])
+
+  // ── Escuchar todas las subscriptions (solo owner) ───────────────────────────
+  useEffect(() => {
+    if (!id || !quest || !profile || profile.uid !== quest.ownerId) return
+    return subscribeToQuestSubscriptions(id, setAllSubscriptions)
+  }, [id, quest?.ownerId, profile?.uid])
+
+  // ───────────────────────────────────────────────────────────────────────────
 
   if (loading) {
     return <div className="flex h-64 items-center justify-center"><Spinner size="lg" className="text-purple-500" /></div>
@@ -74,105 +87,115 @@ export function SideQuestDetailPage() {
   }
 
   const isOwner = profile?.uid === quest.ownerId
-  const isAssignee = profile?.uid === quest.assigneeId
-  const isSelfAssigned = quest.ownerId === quest.assigneeId
   const expired = isExpired(quest)
+  const isFull = quest.maxSubscribers !== null && quest.subscribersCount >= quest.maxSubscribers
+  const canTake = !isOwner && !mySubscription && quest.status === 'open' && !expired
+
+  const existingSubscriberIds = allSubscriptions.map((s) => s.userId)
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
 
   async function withLoading(fn: () => Promise<void>) {
     setActionLoading(true)
-    try { await fn() } catch { toast('Ocurrió un error', 'error') } finally { setActionLoading(false) }
+    try {
+      await fn()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : ''
+      if (msg === 'QUEST_FULL') toast('La quest ya no tiene cupos disponibles', 'error')
+      else if (msg === 'ALREADY_SUBSCRIBED') toast('Ya estás suscrito a esta quest', 'error')
+      else if (msg === 'QUEST_CLOSED') toast('Esta quest está cerrada', 'error')
+      else toast('Ocurrió un error', 'error')
+    } finally {
+      setActionLoading(false)
+    }
   }
 
-  async function handleAssign(assignee: UserProfile) {
-    if (!profile) return
-    if (assignee.uid === profile.uid) {
-      await takeSidequest(quest!, profile)
-    } else {
-      await assignSidequest(quest!, assignee, profile)
-    }
+  async function refreshQuest() {
     const updated = await getSidequest(quest!.id)
     setQuest(updated)
-    toast(assignee.uid === profile.uid ? '¡Quest asignada a ti mismo!' : `Quest asignada a ${assignee.displayName}`, 'success')
   }
 
-  async function handleAccept() {
-    await withLoading(async () => {
-      if (!profile) return
-      await acceptAssignment(quest!, profile)
-      setQuest({ ...quest!, assigneePending: false })
-      toast('¡Quest aceptada! Buena suerte.', 'success')
-    })
-  }
-
-  async function handleReject() {
-    await withLoading(async () => {
-      if (!profile) return
-      await rejectAssignment(quest!, profile)
-      navigate('/')
-      toast('Quest rechazada', 'info')
-    })
-  }
+  // ── Handlers ─────────────────────────────────────────────────────────────────
 
   async function handleTake() {
     await withLoading(async () => {
-      if (!profile) return
-      await takeSidequest(quest!, profile)
-      const updated = await getSidequest(quest!.id)
-      setQuest(updated)
+      await takeQuest(quest!, profile!)
+      await refreshQuest()
+      const sub = await getSubscription(quest!.id, profile!.uid)
+      setMySubscription(sub)
       toast('¡Quest tomada! A por ella.', 'success')
     })
   }
 
-  // Self-assigned: complete directly without modal
-  async function handleSelfComplete() {
+  async function handleInvite(user: UserProfile) {
+    const isSelf = user.uid === profile!.uid
+    await inviteToQuest(quest!, user, profile!)
+    await refreshQuest()
+    toast(
+      isSelf ? '¡Quest asignada a ti mismo!' : `Quest asignada a ${user.displayName}`,
+      'success'
+    )
+    if (isSelf) {
+      const sub = await getSubscription(quest!.id, profile!.uid)
+      setMySubscription(sub)
+    }
+  }
+
+  async function handleAccept() {
     await withLoading(async () => {
-      await completeSidequest(quest!)
-      setQuest({ ...quest!, status: 'complete', completionPending: false })
-      toast('¡Quest completada! 🎉', 'success')
+      await acceptSubscription(quest!.id, profile!, quest!.ownerId, quest!.title)
+      setMySubscription((s) => s ? { ...s, status: 'active' } : s)
+      toast('¡Quest aceptada! Buena suerte.', 'success')
     })
   }
 
-  // Non-self-assigned: CompleteModal calls this with evidence
+  async function handleRejectInvite() {
+    await withLoading(async () => {
+      await rejectSubscription(quest!.id, profile!, quest!.ownerId, quest!.title)
+      setMySubscription(null)
+      await refreshQuest()
+      navigate('/')
+      toast('Invitación rechazada', 'info')
+    })
+  }
+
   async function handleRequestCompletion(evidenceData: string | null) {
-    if (!profile) return
-    await requestCompletion(quest!, profile, evidenceData)
-    const updated = await getSidequest(quest!.id)
-    setQuest(updated)
+    await requestCompletion(quest!.id, profile!.uid, quest!.ownerId, profile!, quest!.title, evidenceData)
+    const sub = await getSubscription(quest!.id, profile!.uid)
+    setMySubscription(sub)
     setCompleteModalOpen(false)
     toast('Evidencia enviada. Esperando confirmación del owner.', 'success')
   }
 
-  // Owner confirms via ValidateModal
   async function handleConfirmCompletion() {
-    if (!profile) return
-    await confirmCompletion(quest!, profile)
-    setQuest({ ...quest!, status: 'complete', completionPending: false })
-    setValidateModalOpen(false)
-    toast('¡Quest confirmada como completada! 🎉', 'success')
+    if (!validateTarget) return
+    await confirmCompletion(quest!.id, validateTarget, profile!)
+    await refreshQuest()
+    setValidateTarget(null)
+    toast('¡Completado confirmado! 🎉', 'success')
   }
 
-  // Owner rejects evidence via ValidateModal
   async function handleRejectEvidence() {
-    if (!profile) return
-    await rejectEvidence(quest!, profile)
-    const updated = await getSidequest(quest!.id)
-    setQuest(updated)
-    setValidateModalOpen(false)
-    toast('Evidencia rechazada. El asignado deberá reenviar.', 'info')
+    if (!validateTarget) return
+    await rejectEvidence(quest!.id, validateTarget, profile!)
+    setValidateTarget(null)
+    toast('Evidencia rechazada. El suscriptor debe reenviar.', 'info')
   }
 
   async function handleFail() {
     await withLoading(async () => {
-      if (!profile) return
-      await failSidequest(quest!, profile)
-      setQuest({ ...quest!, status: 'failed' })
+      await failSubscription(quest!.id, profile!, quest!.ownerId, quest!.title)
+      setMySubscription((s) => s ? { ...s, status: 'failed' } : s)
+      await refreshQuest()
       toast('Quest marcada como fallada', 'info')
     })
   }
 
   async function handleAbandon() {
     await withLoading(async () => {
-      await abandonSidequest(quest!)
+      await abandonSubscription(quest!.id, profile!.uid)
+      setMySubscription(null)
+      await refreshQuest()
       navigate('/')
       toast('Quest abandonada', 'info')
     })
@@ -187,10 +210,40 @@ export function SideQuestDetailPage() {
     })
   }
 
-  const canTake = !isOwner && !isAssignee && !quest.assigneeId && quest.visibility === 'public' && quest.status === 'incomplete' && !expired
+  async function handleRemoveSubscriber(subscriberId: string) {
+    if (!confirm('¿Seguro quieres eliminar a este suscriptor de la quest?')) return
+    await withLoading(async () => {
+      await removeSubscriber(quest!.id, subscriberId, quest!.title, profile!)
+      await refreshQuest()
+      toast('Suscriptor eliminado', 'info')
+    })
+  }
+
+  // ── Subscription cuyo completionPending === true (para el owner) ─────────────
+  const pendingCompletions = allSubscriptions.filter((s) => s.completionPending)
+
+  // ── Construcción del CompleteModal proxy que adapta la interfaz ──────────────
+  // CompleteModal espera un SideQuest con evidenceType y campos de evidencia.
+  // Los campos de evidencia están ahora en la subscription.
+  const questForCompleteModal = {
+    ...quest,
+    evidenceRejected: mySubscription?.evidenceRejected ?? false,
+    evidenceData: mySubscription?.evidenceData ?? null,
+  }
+
+  // ValidateModal necesita la evidencia de la subscription seleccionada
+  const questForValidateModal = validateTarget
+    ? {
+        ...quest,
+        evidenceData: validateTarget.evidenceData,
+        evidenceRejected: validateTarget.evidenceRejected,
+        completionPending: validateTarget.completionPending,
+      }
+    : null
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
+      {/* ── Back ──────────────────────────────────────────────────────────── */}
       <div className="mb-6">
         <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-gray-400 hover:text-white mb-4">
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -203,14 +256,23 @@ export function SideQuestDetailPage() {
           <div className="flex items-center gap-2 flex-wrap">
             <SideQuestStatusBadge status={quest.status} />
             {quest.visibility === 'public' && <Badge variant="blue">Pública</Badge>}
-            {quest.assigneePending && <Badge variant="purple">Pendiente de aceptación</Badge>}
-            {quest.completionPending && <Badge variant="warning">Esperando validación</Badge>}
-            {quest.evidenceRejected && !quest.completionPending && <Badge variant="danger">Evidencia rechazada</Badge>}
+            {mySubscription && <SubscriptionStatusBadge status={mySubscription.status} />}
+            {mySubscription?.completionPending && <Badge variant="warning">Esperando validación</Badge>}
+            {mySubscription?.evidenceRejected && !mySubscription.completionPending && (
+              <Badge variant="danger">Evidencia rechazada</Badge>
+            )}
           </div>
-          {isOwner && quest.status === 'incomplete' && (
+          {isOwner && (
             <div className="flex gap-2">
-              <Link to={`/quests/${quest.id}/edit`} className="inline-flex items-center gap-2 rounded-lg border border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-300 hover:border-gray-500 hover:text-white transition-colors">Editar</Link>
-              <Button variant="danger" size="sm" loading={actionLoading} onClick={handleDelete}>Eliminar</Button>
+              <Link
+                to={`/quests/${quest.id}/edit`}
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-300 hover:border-gray-500 hover:text-white transition-colors"
+              >
+                Editar
+              </Link>
+              <Button variant="danger" size="sm" loading={actionLoading} onClick={handleDelete}>
+                Eliminar
+              </Button>
             </div>
           )}
         </div>
@@ -218,12 +280,14 @@ export function SideQuestDetailPage() {
         <h1 className="mt-3 text-3xl font-bold text-white">{quest.title}</h1>
       </div>
 
+      {/* ── Main card ─────────────────────────────────────────────────────── */}
       <div className="rounded-2xl border border-gray-800 bg-gray-900 p-6 space-y-6">
         <div>
           <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Descripción</h3>
           <p className="text-gray-200 whitespace-pre-wrap">{quest.description}</p>
         </div>
 
+        {/* Reward + Time */}
         <div className="grid grid-cols-2 gap-4">
           <div className="rounded-xl border border-gray-800 bg-gray-950 p-4">
             <p className="text-xs text-gray-500 mb-1">Recompensa</p>
@@ -231,7 +295,6 @@ export function SideQuestDetailPage() {
               <span>🏆</span> {quest.reward}
             </p>
           </div>
-
           <div className="rounded-xl border border-gray-800 bg-gray-950 p-4">
             <p className="text-xs text-gray-500 mb-1">Tiempo</p>
             <ExpireCountdown quest={quest} />
@@ -241,7 +304,28 @@ export function SideQuestDetailPage() {
           </div>
         </div>
 
-        {/* Evidence type indicator */}
+        {/* Métricas */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="rounded-xl border border-gray-800 bg-gray-950 p-3 text-center">
+            <p className="text-lg font-bold text-white">
+              {quest.subscribersCount}
+              {quest.maxSubscribers !== null && (
+                <span className="text-sm text-gray-500">/{quest.maxSubscribers}</span>
+              )}
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5">Suscriptores</p>
+          </div>
+          <div className="rounded-xl border border-gray-800 bg-gray-950 p-3 text-center">
+            <p className="text-lg font-bold text-green-400">{quest.completedCount}</p>
+            <p className="text-xs text-gray-500 mt-0.5">Completados</p>
+          </div>
+          <div className="rounded-xl border border-gray-800 bg-gray-950 p-3 text-center">
+            <p className="text-lg font-bold text-red-400">{quest.failedCount}</p>
+            <p className="text-xs text-gray-500 mt-0.5">Fallados</p>
+          </div>
+        </div>
+
+        {/* Evidence type */}
         {evidenceLabels[quest.evidenceType] && (
           <div className="rounded-xl border border-purple-900/50 bg-purple-950/20 px-4 py-3 flex items-center gap-2">
             <svg className="h-4 w-4 text-purple-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -251,101 +335,138 @@ export function SideQuestDetailPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-xs text-gray-500 mb-2">Creada por</p>
-            <div className="flex items-center gap-2">
-              <Avatar src={quest.ownerPhotoURL} name={quest.ownerDisplayName} size="sm" />
-              <span className="text-sm text-gray-300">{quest.ownerDisplayName}</span>
-            </div>
+        {/* Owner info */}
+        <div>
+          <p className="text-xs text-gray-500 mb-2">Creada por</p>
+          <div className="flex items-center gap-2">
+            <Avatar src={quest.ownerPhotoURL} name={quest.ownerDisplayName} size="sm" />
+            <span className="text-sm text-gray-300">{quest.ownerDisplayName}</span>
           </div>
-
-          {quest.assigneeId && (
-            <div>
-              <p className="text-xs text-gray-500 mb-2">Asignada a</p>
-              <div className="flex items-center gap-2">
-                <Avatar src={assigneeProfile?.photoURL} name={quest.assigneeDisplayName ?? 'U'} size="sm" />
-                <span className="text-sm text-gray-300">{quest.assigneeDisplayName}</span>
-                {quest.assigneePending && <span className="text-xs text-purple-400">(pendiente)</span>}
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Action area */}
-        {quest.status === 'incomplete' && !expired && (
+        {/* ── Action area ─────────────────────────────────────────────────── */}
+        {!expired && (
           <div className="flex flex-wrap gap-3 pt-2 border-t border-gray-800">
-            {/* Owner: assign */}
-            {isOwner && !quest.assigneeId && (
-              <Button onClick={() => setAssignModalOpen(true)}>Asignar a amigo</Button>
+            {/* Visitor: tomar */}
+            {canTake && !isFull && (
+              <Button onClick={handleTake} loading={actionLoading}>Tomar Quest</Button>
+            )}
+            {canTake && isFull && (
+              <p className="text-sm text-gray-500 italic">Esta quest está llena.</p>
             )}
 
-            {/* Owner: validate completion sent by assignee */}
-            {isOwner && !isSelfAssigned && quest.completionPending && (
-              <Button onClick={() => setValidateModalOpen(true)} loading={actionLoading}>
-                Validar completado
-              </Button>
-            )}
-
-            {/* Assignee pending actions */}
-            {isAssignee && quest.assigneePending && (
+            {/* Subscription: pendiente de aceptar */}
+            {mySubscription?.status === 'pending' && (
               <>
                 <Button onClick={handleAccept} loading={actionLoading}>Aceptar Quest</Button>
-                <Button variant="secondary" onClick={handleReject} loading={actionLoading}>Rechazar</Button>
+                <Button variant="secondary" onClick={handleRejectInvite} loading={actionLoading}>Rechazar</Button>
               </>
             )}
 
-            {/* Assignee active actions */}
-            {isAssignee && !quest.assigneePending && (
+            {/* Subscription: activa */}
+            {mySubscription?.status === 'active' && (
               <>
-                {isSelfAssigned ? (
-                  <Button onClick={handleSelfComplete} loading={actionLoading}>
-                    Marcar como completada
+                {!mySubscription.completionPending && (
+                  <Button onClick={() => setCompleteModalOpen(true)}>
+                    {mySubscription.evidenceRejected ? 'Reenviar evidencia' : 'Completar'}
                   </Button>
-                ) : (
-                  !quest.completionPending && (
-                    <Button onClick={() => setCompleteModalOpen(true)}>
-                      {quest.evidenceRejected ? 'Reenviar evidencia' : 'Completar'}
-                    </Button>
-                  )
                 )}
-                <Button variant="danger" onClick={handleFail} loading={actionLoading}>Marcar como fallada</Button>
+                <Button variant="danger" onClick={handleFail} loading={actionLoading}>Fallar</Button>
                 <Button variant="ghost" onClick={handleAbandon} loading={actionLoading}>Abandonar</Button>
               </>
             )}
 
-            {/* Visitor take action */}
-            {canTake && (
-              <Button onClick={handleTake} loading={actionLoading}>Tomar Quest</Button>
+            {/* Owner: asignar */}
+            {isOwner && !isFull && (
+              <Button variant="secondary" onClick={() => setAssignModalOpen(true)}>
+                Asignar a alguien
+              </Button>
             )}
+          </div>
+        )}
+
+        {/* ── Owner: completions pendientes de validar ─────────────────────── */}
+        {isOwner && pendingCompletions.length > 0 && (
+          <div className="pt-2 border-t border-gray-800">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
+              Pendientes de validación ({pendingCompletions.length})
+            </p>
+            <ul className="flex flex-col gap-2">
+              {pendingCompletions.map((sub) => (
+                <li key={sub.userId} className="flex items-center justify-between gap-3 rounded-lg border border-yellow-800/50 bg-yellow-950/10 p-3">
+                  <div className="flex items-center gap-2">
+                    <Avatar src={sub.userPhotoURL} name={sub.userDisplayName} size="sm" />
+                    <span className="text-sm text-gray-300">{sub.userDisplayName}</span>
+                  </div>
+                  <Button size="sm" onClick={() => setValidateTarget(sub)}>Validar</Button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* ── Owner: lista de todos los suscriptores ─────────────────────── */}
+        {isOwner && allSubscriptions.length > 0 && (
+          <div className="pt-2 border-t border-gray-800">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
+              Suscriptores ({allSubscriptions.length})
+            </p>
+            <ul className="flex flex-col gap-2">
+              {allSubscriptions.map((sub) => (
+                <li key={sub.userId} className="flex items-center justify-between gap-3 rounded-lg border border-gray-800 p-3">
+                  <div className="flex items-center gap-2">
+                    <Avatar src={sub.userPhotoURL} name={sub.userDisplayName} size="sm" />
+                    <span className="text-sm text-gray-300">{sub.userDisplayName}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <SubscriptionStatusBadge status={sub.status} />
+                    <button
+                      onClick={() => handleRemoveSubscriber(sub.userId)}
+                      className="text-gray-500 hover:text-red-400 focus:outline-none transition-colors"
+                      title="Eliminar suscriptor"
+                      disabled={actionLoading}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </div>
 
+      {/* ── Modales ──────────────────────────────────────────────────────────── */}
       {profile && (
         <AssignModal
           open={assignModalOpen}
           onClose={() => setAssignModalOpen(false)}
+          quest={quest}
           friends={friends}
           currentUser={profile}
-          onAssign={handleAssign}
+          existingSubscriberIds={existingSubscriberIds}
+          onAssign={handleInvite}
         />
       )}
 
       <CompleteModal
         open={completeModalOpen}
         onClose={() => setCompleteModalOpen(false)}
-        quest={quest}
+        quest={questForCompleteModal as Parameters<typeof CompleteModal>[0]['quest']}
         onSubmit={handleRequestCompletion}
       />
 
-      <ValidateModal
-        open={validateModalOpen}
-        onClose={() => setValidateModalOpen(false)}
-        quest={quest}
-        onConfirm={handleConfirmCompletion}
-        onReject={handleRejectEvidence}
-      />
+      {questForValidateModal && (
+        <ValidateModal
+          open={validateTarget !== null}
+          onClose={() => setValidateTarget(null)}
+          quest={questForValidateModal as Parameters<typeof ValidateModal>[0]['quest']}
+          onConfirm={handleConfirmCompletion}
+          onReject={handleRejectEvidence}
+        />
+      )}
     </div>
   )
 }

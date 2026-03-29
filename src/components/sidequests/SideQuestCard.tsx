@@ -15,15 +15,16 @@ interface Props {
 
 export function SideQuestCard({ quest, currentUserId, action }: Props) {
   const expired = isExpired(quest)
+  const isFull = quest.maxSubscribers !== null && quest.subscribersCount >= quest.maxSubscribers
 
   return (
     <div
       className={cn(
         'relative rounded-xl border bg-gray-900 p-4 transition-colors hover:border-gray-700',
-        expired && quest.status === 'incomplete' ? 'border-red-900/50' : 'border-gray-800'
+        expired ? 'border-red-900/50' : 'border-gray-800'
       )}
     >
-      {expired && quest.status === 'incomplete' && (
+      {expired && (
         <div className="absolute inset-0 rounded-xl bg-red-950/20 pointer-events-none" />
       )}
 
@@ -31,12 +32,8 @@ export function SideQuestCard({ quest, currentUserId, action }: Props) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <SideQuestStatusBadge status={quest.status} />
-            {quest.visibility === 'public' && (
-              <Badge variant="blue">Pública</Badge>
-            )}
-            {quest.assigneePending && (
-              <Badge variant="purple">Pendiente de aceptación</Badge>
-            )}
+            {quest.visibility === 'public' && <Badge variant="blue">Pública</Badge>}
+            {isFull && <Badge variant="default">Llena</Badge>}
           </div>
 
           <Link
@@ -50,7 +47,7 @@ export function SideQuestCard({ quest, currentUserId, action }: Props) {
         </div>
       </div>
 
-      <div className="mt-3 flex items-center gap-2 text-xs text-gray-500">
+      <div className="mt-3 flex items-center gap-2 text-xs text-gray-500 flex-wrap">
         <div className="flex items-center gap-1.5">
           <span className="text-yellow-500">🏆</span>
           <span className="text-gray-300 truncate max-w-[120px]">{quest.reward}</span>
@@ -58,6 +55,12 @@ export function SideQuestCard({ quest, currentUserId, action }: Props) {
 
         <span className="text-gray-700">·</span>
         <ExpireCountdown quest={quest} />
+
+        <span className="text-gray-700">·</span>
+        <span className="text-gray-400">
+          {quest.subscribersCount}
+          {quest.maxSubscribers !== null ? `/${quest.maxSubscribers}` : ''} suscriptores
+        </span>
 
         {currentUserId && quest.ownerId !== currentUserId && (
           <>

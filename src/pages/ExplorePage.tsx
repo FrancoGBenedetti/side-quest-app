@@ -10,13 +10,13 @@ import { Spinner } from '../components/ui/Spinner'
 import { useAuth } from '../hooks/useAuth'
 import { useNavigate } from 'react-router-dom'
 
-type StatusFilter = 'incomplete' | 'all' | 'complete' | 'failed'
+type StatusFilter = 'open' | 'all' | 'closed'
 
 export function ExplorePage() {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
-  const [status, setStatus] = useState<StatusFilter>('incomplete')
+  const [status, setStatus] = useState<StatusFilter>('open')
   const [results, setResults] = useState<SideQuest[]>([])
   const [loading, setLoading] = useState(false)
   const debouncedQuery = useDebounce(query, 350)
@@ -48,10 +48,9 @@ export function ExplorePage() {
           onChange={(e) => setStatus(e.target.value as StatusFilter)}
           className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-purple-500"
         >
-          <option value="incomplete">Disponibles</option>
+          <option value="open">Disponibles</option>
           <option value="all">Todas</option>
-          <option value="complete">Completadas</option>
-          <option value="failed">Falladas</option>
+          <option value="closed">Cerradas</option>
         </select>
       </div>
 
@@ -71,8 +70,8 @@ export function ExplorePage() {
         <div className="flex flex-col gap-3">
           {results.map((quest) => {
             const isOwner = quest.ownerId === profile?.uid
-            const isAssignee = quest.assigneeId === profile?.uid
-            const canTake = !isOwner && !isAssignee && !quest.assigneeId && quest.status === 'incomplete'
+            const isFull = quest.maxSubscribers !== null && quest.subscribersCount >= quest.maxSubscribers
+            const canJoin = !isOwner && quest.status === 'open' && !isFull
 
             return (
               <SideQuestCard
@@ -80,7 +79,7 @@ export function ExplorePage() {
                 quest={quest}
                 currentUserId={profile?.uid}
                 action={
-                  canTake ? (
+                  canJoin ? (
                     <Button size="sm" onClick={() => navigate(`/quests/${quest.id}`)}>
                       Ver Quest
                     </Button>

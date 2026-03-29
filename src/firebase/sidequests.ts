@@ -15,10 +15,10 @@ import {
   limit,
 } from 'firebase/firestore'
 import { db } from './config'
+import { QUEST_CONFIG } from '../config/questConfig'
 import type { SideQuest } from '../types/sidequest'
 import type { SideQuestInput } from '../schemas/sidequestSchema'
 import type { UserProfile } from '../types/user'
-import { createNotification } from './notifications'
 
 function inputToFirestore(data: SideQuestInput) {
   return {
@@ -31,22 +31,20 @@ function inputToFirestore(data: SideQuestInput) {
       : null,
     visibility: data.visibility,
     evidenceType: data.evidenceType,
+    maxSubscribers: data.maxSubscribers ?? QUEST_CONFIG.defaultMaxSubscribers,
   }
 }
 
 export async function createSidequest(data: SideQuestInput, owner: UserProfile): Promise<string> {
   const ref = await addDoc(collection(db, 'sidequests'), {
     ...inputToFirestore(data),
-    status: 'incomplete',
+    status: 'open',
     ownerId: owner.uid,
     ownerDisplayName: owner.displayName,
     ownerPhotoURL: owner.photoURL,
-    assigneeId: null,
-    assigneeDisplayName: null,
-    assigneePending: false,
-    completionPending: false,
-    evidenceData: null,
-    evidenceRejected: false,
+    subscribersCount: 0,
+    completedCount: 0,
+    failedCount: 0,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
@@ -79,202 +77,14 @@ export function subscribeToOwnedSidequests(
     where('ownerId', '==', ownerId),
     orderBy('createdAt', 'desc')
   )
-
   return onSnapshot(q, (snap) => {
     callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as SideQuest)))
-  })
-}
-
-export function subscribeToAssignedSidequests(
-  assigneeId: string,
-  callback: (quests: SideQuest[]) => void
-): () => void {
-  const q = query(
-    collection(db, 'sidequests'),
-    where('assigneeId', '==', assigneeId),
-    orderBy('createdAt', 'desc')
-  )
-
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as SideQuest)))
-  })
-}
-
-export async function assignSidequest(
-  quest: SideQuest,
-  assignee: UserProfile,
-  owner: UserProfile
-): Promise<void> {
-  await updateDoc(doc(db, 'sidequests', quest.id), {
-    assigneeId: assignee.uid,
-    assigneeDisplayName: assignee.displayName,
-    assigneePending: true,
-    updatedAt: serverTimestamp(),
-  })
-
-  await createNotification(assignee.uid, {
-    type: 'sidequest_assigned',
-    fromUserId: owner.uid,
-    fromUserDisplayName: owner.displayName,
-    fromUserPhotoURL: owner.photoURL,
-    sidequestId: quest.id,
-    sidequestTitle: quest.title,
-  })
-}
-
-export async function acceptAssignment(quest: SideQuest, assignee: UserProfile): Promise<void> {
-  await updateDoc(doc(db, 'sidequests', quest.id), {
-    assigneePending: false,
-    updatedAt: serverTimestamp(),
-  })
-
-  await createNotification(quest.ownerId, {
-    type: 'sidequest_accepted',
-    fromUserId: assignee.uid,
-    fromUserDisplayName: assignee.displayName,
-    fromUserPhotoURL: assignee.photoURL,
-    sidequestId: quest.id,
-    sidequestTitle: quest.title,
-  })
-}
-
-export async function rejectAssignment(quest: SideQuest, assignee: UserProfile): Promise<void> {
-  await updateDoc(doc(db, 'sidequests', quest.id), {
-    assigneeId: null,
-    assigneeDisplayName: null,
-    assigneePending: false,
-    updatedAt: serverTimestamp(),
-  })
-
-  await createNotification(quest.ownerId, {
-    type: 'sidequest_rejected',
-    fromUserId: assignee.uid,
-    fromUserDisplayName: assignee.displayName,
-    fromUserPhotoURL: assignee.photoURL,
-    sidequestId: quest.id,
-    sidequestTitle: quest.title,
-  })
-}
-
-export async function takeSidequest(quest: SideQuest, taker: UserProfile): Promise<void> {
-  await updateDoc(doc(db, 'sidequests', quest.id), {
-    assigneeId: taker.uid,
-    assigneeDisplayName: taker.displayName,
-    assigneePending: false,
-    updatedAt: serverTimestamp(),
-  })
-
-  if (quest.ownerId !== taker.uid) {
-    await createNotification(quest.ownerId, {
-      type: 'sidequest_assigned',
-      fromUserId: taker.uid,
-      fromUserDisplayName: taker.displayName,
-      fromUserPhotoURL: taker.photoURL,
-      sidequestId: quest.id,
-      sidequestTitle: quest.title,
-    })
-  }
-}
-
-export async function completeSidequest(quest: SideQuest): Promise<void> {
-  await updateDoc(doc(db, 'sidequests', quest.id), {
-    status: 'complete',
-    completionPending: false,
-    updatedAt: serverTimestamp(),
-  })
-}
-
-export async function requestCompletion(
-  quest: SideQuest,
-  assignee: UserProfile,
-  evidenceData: string | null = null
-): Promise<void> {
-  await updateDoc(doc(db, 'sidequests', quest.id), {
-    completionPending: true,
-    evidenceData,
-    evidenceRejected: false,
-    updatedAt: serverTimestamp(),
-  })
-
-  await createNotification(quest.ownerId, {
-    type: 'sidequest_completion_requested',
-    fromUserId: assignee.uid,
-    fromUserDisplayName: assignee.displayName,
-    fromUserPhotoURL: assignee.photoURL,
-    sidequestId: quest.id,
-    sidequestTitle: quest.title,
-  })
-}
-
-export async function rejectEvidence(quest: SideQuest, owner: UserProfile): Promise<void> {
-  await updateDoc(doc(db, 'sidequests', quest.id), {
-    completionPending: false,
-    evidenceData: null,
-    evidenceRejected: true,
-    updatedAt: serverTimestamp(),
-  })
-
-  if (quest.assigneeId) {
-    await createNotification(quest.assigneeId, {
-      type: 'sidequest_evidence_rejected',
-      fromUserId: owner.uid,
-      fromUserDisplayName: owner.displayName,
-      fromUserPhotoURL: owner.photoURL,
-      sidequestId: quest.id,
-      sidequestTitle: quest.title,
-    })
-  }
-}
-
-export async function confirmCompletion(quest: SideQuest, owner: UserProfile): Promise<void> {
-  await updateDoc(doc(db, 'sidequests', quest.id), {
-    status: 'complete',
-    completionPending: false,
-    updatedAt: serverTimestamp(),
-  })
-
-  if (quest.assigneeId && quest.assigneeId !== owner.uid) {
-    await createNotification(quest.assigneeId, {
-      type: 'sidequest_completed',
-      fromUserId: owner.uid,
-      fromUserDisplayName: owner.displayName,
-      fromUserPhotoURL: owner.photoURL,
-      sidequestId: quest.id,
-      sidequestTitle: quest.title,
-    })
-  }
-}
-
-export async function failSidequest(quest: SideQuest, assignee: UserProfile): Promise<void> {
-  await updateDoc(doc(db, 'sidequests', quest.id), {
-    status: 'failed',
-    updatedAt: serverTimestamp(),
-  })
-
-  if (quest.ownerId !== assignee.uid) {
-    await createNotification(quest.ownerId, {
-      type: 'sidequest_failed',
-      fromUserId: assignee.uid,
-      fromUserDisplayName: assignee.displayName,
-      fromUserPhotoURL: assignee.photoURL,
-      sidequestId: quest.id,
-      sidequestTitle: quest.title,
-    })
-  }
-}
-
-export async function abandonSidequest(quest: SideQuest): Promise<void> {
-  await updateDoc(doc(db, 'sidequests', quest.id), {
-    assigneeId: null,
-    assigneeDisplayName: null,
-    assigneePending: false,
-    updatedAt: serverTimestamp(),
   })
 }
 
 export async function searchPublicSidequests(
   searchQuery: string,
-  statusFilter: 'all' | 'incomplete' | 'complete' | 'failed' = 'incomplete'
+  statusFilter: 'all' | 'open' | 'closed' = 'open'
 ): Promise<SideQuest[]> {
   let q
 

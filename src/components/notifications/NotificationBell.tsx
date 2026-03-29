@@ -25,6 +25,7 @@ export function NotificationBell() {
     sidequest_completed: 'confirmó el completado de tu sidequest',
     sidequest_failed: 'falló tu sidequest',
     sidequest_evidence_rejected: 'rechazó tu evidencia en la quest',
+    sidequest_removed: 'te eliminó de la sidequest',
   }
 
   async function handleNotifClick(notif: Notification) {
