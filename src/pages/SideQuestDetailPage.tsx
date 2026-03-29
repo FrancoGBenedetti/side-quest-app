@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
-import { getSidequest, deleteSidequest } from '../firebase/sidequests'
+import { getSidequest, deleteSidequest, closeSidequest, reopenSidequest } from '../firebase/sidequests'
 import {
   getSubscription,
   subscribeToQuestSubscriptions,
@@ -201,6 +201,23 @@ export function SideQuestDetailPage() {
     })
   }
 
+  async function handleClose() {
+    if (!confirm('¿Cerrar esta quest? Ya nadie podrá suscribirse. Puedes reabrirla después.')) return
+    await withLoading(async () => {
+      await closeSidequest(quest!.id)
+      await refreshQuest()
+      toast('Quest cerrada', 'info')
+    })
+  }
+
+  async function handleReopen() {
+    await withLoading(async () => {
+      await reopenSidequest(quest!.id)
+      await refreshQuest()
+      toast('Quest reabierta', 'success')
+    })
+  }
+
   async function handleDelete() {
     if (!confirm('¿Eliminar esta quest? Esta acción no se puede deshacer.')) return
     await withLoading(async () => {
@@ -263,13 +280,22 @@ export function SideQuestDetailPage() {
             )}
           </div>
           {isOwner && (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Link
                 to={`/quests/${quest.id}/edit`}
                 className="inline-flex items-center gap-2 rounded-lg border border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-300 hover:border-gray-500 hover:text-white transition-colors"
               >
                 Editar
               </Link>
+              {quest.status === 'open' ? (
+                <Button variant="secondary" size="sm" loading={actionLoading} onClick={handleClose}>
+                  Cerrar Quest
+                </Button>
+              ) : (
+                <Button variant="secondary" size="sm" loading={actionLoading} onClick={handleReopen}>
+                  Reabrir
+                </Button>
+              )}
               <Button variant="danger" size="sm" loading={actionLoading} onClick={handleDelete}>
                 Eliminar
               </Button>
@@ -345,9 +371,18 @@ export function SideQuestDetailPage() {
         </div>
 
         {/* ── Action area ─────────────────────────────────────────────────── */}
+        {quest.status === 'closed' && !mySubscription && !isOwner && (
+          <div className="flex items-center gap-2 rounded-xl border border-gray-700 bg-gray-800/50 px-4 py-3">
+            <svg className="h-4 w-4 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            <p className="text-sm text-gray-400">Esta quest está cerrada. No se aceptan nuevos suscriptores.</p>
+          </div>
+        )}
+
         {!expired && (
           <div className="flex flex-wrap gap-3 pt-2 border-t border-gray-800">
-            {/* Visitor: tomar */}
+            {/* Visitor: tomar quest pública */}
             {canTake && !isFull && (
               <Button onClick={handleTake} loading={actionLoading}>Tomar Quest</Button>
             )}
@@ -376,8 +411,8 @@ export function SideQuestDetailPage() {
               </>
             )}
 
-            {/* Owner: asignar */}
-            {isOwner && !isFull && (
+            {/* Owner: asignar (solo si la quest está abierta) */}
+            {isOwner && quest.status === 'open' && !isFull && (
               <Button variant="secondary" onClick={() => setAssignModalOpen(true)}>
                 Asignar a alguien
               </Button>

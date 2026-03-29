@@ -58,6 +58,20 @@ export async function updateSidequest(id: string, data: SideQuestInput): Promise
   })
 }
 
+export async function closeSidequest(id: string): Promise<void> {
+  await updateDoc(doc(db, 'sidequests', id), {
+    status: 'closed',
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function reopenSidequest(id: string): Promise<void> {
+  await updateDoc(doc(db, 'sidequests', id), {
+    status: 'open',
+    updatedAt: serverTimestamp(),
+  })
+}
+
 export async function deleteSidequest(id: string): Promise<void> {
   await deleteDoc(doc(db, 'sidequests', id))
 }
