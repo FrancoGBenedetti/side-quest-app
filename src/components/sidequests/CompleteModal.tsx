@@ -7,7 +7,7 @@ import { uploadEvidenceImage } from '../../firebase/storageHelpers'
 interface Props {
   open: boolean
   onClose: () => void
-  quest: SideQuest
+  quest: SideQuest & { evidenceRejected?: boolean; evidenceData?: string | null }
   onSubmit: (evidenceData: string | null) => Promise<void>
 }
 

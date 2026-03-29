@@ -6,7 +6,7 @@ import type { SideQuest } from '../../types/sidequest'
 interface Props {
   open: boolean
   onClose: () => void
-  quest: SideQuest
+  quest: SideQuest & { evidenceData?: string | null; evidenceRejected?: boolean; completionPending?: boolean }
   onConfirm: () => Promise<void>
   onReject: () => Promise<void>
 }
