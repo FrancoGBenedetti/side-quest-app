@@ -1,7 +1,6 @@
 import {
   doc,
   getDoc,
-  setDoc,
   updateDoc,
   collection,
   collectionGroup,
@@ -49,6 +48,7 @@ function buildSubscriptionData(
     completionPending: false,
     evidenceData: null,
     evidenceRejected: false,
+    rating: null,
   }
 }
 
