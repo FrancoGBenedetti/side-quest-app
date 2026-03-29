@@ -15,7 +15,7 @@ export const sidequestSchema = z
     evidenceType: z.enum(['none', 'photo', 'text']),
     tags: z
       .array(z.string().refine((t) => validTagIds.includes(t), { message: 'Categoría inválida' }))
-      .default([]),
+      .optional(),
     /**
      * null = ilimitado
      * number = 1..QUEST_CONFIG.maxAllowed
