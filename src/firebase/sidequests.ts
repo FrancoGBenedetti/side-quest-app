@@ -32,6 +32,7 @@ function inputToFirestore(data: SideQuestInput) {
     visibility: data.visibility,
     evidenceType: data.evidenceType,
     maxSubscribers: data.maxSubscribers ?? QUEST_CONFIG.defaultMaxSubscribers,
+    tags: data.tags ?? [],
   }
 }
 
@@ -98,11 +99,13 @@ export function subscribeToOwnedSidequests(
 
 export async function searchPublicSidequests(
   searchQuery: string,
-  statusFilter: 'all' | 'open' | 'closed' = 'open'
+  statusFilter: 'all' | 'open' | 'closed' = 'open',
+  tagFilter?: string
 ): Promise<SideQuest[]> {
   let q
 
   if (searchQuery.trim()) {
+    // Búsqueda por texto: no combinamos con tag para evitar índices extra
     q = query(
       collection(db, 'sidequests'),
       where('visibility', '==', 'public'),
@@ -112,13 +115,16 @@ export async function searchPublicSidequests(
       limit(50)
     )
   } else {
-    const constraints = [
+    const constraints: Parameters<typeof query>[1][] = [
       where('visibility', '==', 'public'),
       orderBy('createdAt', 'desc'),
       limit(50),
     ]
     if (statusFilter !== 'all') {
       constraints.unshift(where('status', '==', statusFilter))
+    }
+    if (tagFilter) {
+      constraints.unshift(where('tags', 'array-contains', tagFilter))
     }
     q = query(collection(db, 'sidequests'), ...constraints)
   }

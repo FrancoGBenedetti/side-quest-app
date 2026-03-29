@@ -32,6 +32,8 @@ import { ValidateModal } from '../components/sidequests/ValidateModal'
 import { formatDate } from '../utils/formatDate'
 import { isExpired } from '../utils/isExpired'
 import { toast } from '../components/ui/Toast'
+import { QUEST_CATEGORY_MAP } from '../constants/questCategories'
+import { cn } from '../utils/cn'
 
 const evidenceLabels = {
   none: null,
@@ -358,6 +360,30 @@ export function SideQuestDetailPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
             <p className="text-xs text-purple-300">{evidenceLabels[quest.evidenceType]}</p>
+          </div>
+        )}
+
+        {/* Tags */}
+        {quest.tags && quest.tags.length > 0 && (
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Categorías</h3>
+            <div className="flex flex-wrap gap-2">
+              {quest.tags.map((tagId) => {
+                const cat = QUEST_CATEGORY_MAP[tagId]
+                if (!cat) return null
+                return (
+                  <span
+                    key={tagId}
+                    className={cn(
+                      'inline-flex items-center rounded-full px-3 py-1 text-xs font-medium',
+                      cat.badgeClass
+                    )}
+                  >
+                    {cat.emoji} {cat.label}
+                  </span>
+                )
+              })}
+            </div>
           </div>
         )}
 

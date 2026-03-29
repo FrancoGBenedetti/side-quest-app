@@ -6,6 +6,7 @@ import { SideQuestStatusBadge } from './SideQuestStatusBadge'
 import { ExpireCountdown } from './ExpireCountdown'
 import { cn } from '../../utils/cn'
 import { isExpired } from '../../utils/isExpired'
+import { QUEST_CATEGORY_MAP } from '../../constants/questCategories'
 
 interface Props {
   quest: SideQuest
@@ -44,6 +45,26 @@ export function SideQuestCard({ quest, currentUserId, action }: Props) {
           </Link>
 
           <p className="mt-1 text-sm text-gray-400 line-clamp-2">{quest.description}</p>
+
+          {quest.tags && quest.tags.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {quest.tags.map((tagId) => {
+                const cat = QUEST_CATEGORY_MAP[tagId]
+                if (!cat) return null
+                return (
+                  <span
+                    key={tagId}
+                    className={cn(
+                      'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium',
+                      cat.badgeClass
+                    )}
+                  >
+                    {cat.emoji} {cat.label}
+                  </span>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
 

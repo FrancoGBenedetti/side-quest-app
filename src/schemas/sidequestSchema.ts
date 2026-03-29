@@ -1,5 +1,8 @@
 import { z } from 'zod'
 import { QUEST_CONFIG } from '../config/questConfig'
+import { QUEST_CATEGORIES } from '../constants/questCategories'
+
+const validTagIds = QUEST_CATEGORIES.map((c) => c.id)
 
 export const sidequestSchema = z
   .object({
@@ -10,6 +13,9 @@ export const sidequestSchema = z
     expiresAt: z.string().nullable(),
     visibility: z.enum(['public', 'private']),
     evidenceType: z.enum(['none', 'photo', 'text']),
+    tags: z
+      .array(z.string().refine((t) => validTagIds.includes(t), { message: 'Categoría inválida' }))
+      .default([]),
     /**
      * null = ilimitado
      * number = 1..QUEST_CONFIG.maxAllowed

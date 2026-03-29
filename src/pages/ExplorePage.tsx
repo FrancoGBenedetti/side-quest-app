@@ -9,6 +9,8 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Spinner } from '../components/ui/Spinner'
 import { useAuth } from '../hooks/useAuth'
 import { useNavigate } from 'react-router-dom'
+import { QUEST_CATEGORIES } from '../constants/questCategories'
+import { cn } from '../utils/cn'
 
 type StatusFilter = 'open' | 'all' | 'closed'
 
@@ -17,16 +19,17 @@ export function ExplorePage() {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState<StatusFilter>('open')
+  const [activeTag, setActiveTag] = useState<string | undefined>(undefined)
   const [results, setResults] = useState<SideQuest[]>([])
   const [loading, setLoading] = useState(false)
   const debouncedQuery = useDebounce(query, 350)
 
   useEffect(() => {
     setLoading(true)
-    searchPublicSidequests(debouncedQuery, status)
+    searchPublicSidequests(debouncedQuery, status, activeTag)
       .then(setResults)
       .finally(() => setLoading(false))
-  }, [debouncedQuery, status])
+  }, [debouncedQuery, status, activeTag])
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
@@ -35,7 +38,8 @@ export function ExplorePage() {
         <p className="text-sm text-gray-400 mt-1">Encuentra quests públicas y únete a ellas</p>
       </div>
 
-      <div className="flex gap-3 mb-4">
+      {/* Barra de búsqueda + estado */}
+      <div className="flex gap-3 mb-3">
         <div className="flex-1">
           <Input
             placeholder="Buscar quests..."
@@ -52,6 +56,35 @@ export function ExplorePage() {
           <option value="all">Todas</option>
           <option value="closed">Cerradas</option>
         </select>
+      </div>
+
+      {/* Filtro por categoría */}
+      <div className="flex flex-wrap gap-2 mb-5">
+        <button
+          onClick={() => setActiveTag(undefined)}
+          className={cn(
+            'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+            activeTag === undefined
+              ? 'border-purple-500 bg-purple-600/20 text-purple-300'
+              : 'border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white'
+          )}
+        >
+          Todas
+        </button>
+        {QUEST_CATEGORIES.map((cat) => (
+          <button
+            key={cat.id}
+            onClick={() => setActiveTag(activeTag === cat.id ? undefined : cat.id)}
+            className={cn(
+              'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+              activeTag === cat.id
+                ? cat.activeClass
+                : 'border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white'
+            )}
+          >
+            {cat.emoji} {cat.label}
+          </button>
+        ))}
       </div>
 
       {loading ? (

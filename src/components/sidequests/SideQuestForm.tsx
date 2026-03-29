@@ -6,6 +6,8 @@ import { Button } from '../ui/Button'
 import type { SideQuest } from '../../types/sidequest'
 import { Timestamp } from 'firebase/firestore'
 import { QUEST_CONFIG } from '../../config/questConfig'
+import { QUEST_CATEGORIES } from '../../constants/questCategories'
+import { cn } from '../../utils/cn'
 
 interface Props {
   onSubmit: (data: SideQuestInput) => Promise<void>
@@ -37,12 +39,22 @@ export function SideQuestForm({ onSubmit, defaultValues, submitLabel = 'Crear Qu
       visibility: defaultValues?.visibility ?? 'private',
       evidenceType: defaultValues?.evidenceType ?? 'none',
       maxSubscribers: defaultValues?.maxSubscribers ?? QUEST_CONFIG.defaultMaxSubscribers,
+      tags: defaultValues?.tags ?? [],
     },
   })
 
   const isEternal = watch('isEternal')
   const evidenceType = watch('evidenceType')
   const maxSubscribers = watch('maxSubscribers')
+  const tags = watch('tags')
+
+  function toggleTag(id: string) {
+    const current = tags ?? []
+    const next = current.includes(id)
+      ? current.filter((t) => t !== id)
+      : [...current, id]
+    setValue('tags', next, { shouldValidate: true })
+  }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
@@ -177,6 +189,31 @@ export function SideQuestForm({ onSubmit, defaultValues, submitLabel = 'Crear Qu
         {errors.maxSubscribers && (
           <p className="text-xs text-red-400">{errors.maxSubscribers.message}</p>
         )}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-sm font-medium text-gray-300">Categorías</label>
+        <p className="text-xs text-gray-500 mb-1">Selecciona las que mejor describan tu quest (opcional)</p>
+        <div className="flex flex-wrap gap-2">
+          {QUEST_CATEGORIES.map((cat) => {
+            const isActive = (tags ?? []).includes(cat.id)
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => toggleTag(cat.id)}
+                className={cn(
+                  'rounded-full border px-3 py-1 text-sm font-medium transition-colors',
+                  isActive
+                    ? cat.activeClass
+                    : 'border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white'
+                )}
+              >
+                {cat.emoji} {cat.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       <Button type="submit" loading={isSubmitting} className="w-full">

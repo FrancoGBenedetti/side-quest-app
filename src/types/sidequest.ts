@@ -26,6 +26,8 @@ export interface SideQuest {
 
   evidenceType: EvidenceType
   visibility: SideQuestVisibility
+  /** IDs de las categorías seleccionadas (ref a QUEST_CATEGORIES) */
+  tags: string[]
   createdAt: Timestamp
   updatedAt: Timestamp
 }
