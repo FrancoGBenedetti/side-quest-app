@@ -8,9 +8,10 @@ interface Props {
   emptyTitle?: string
   emptyDescription?: string
   emptyAction?: React.ReactNode
+  onOpen?: (quest: SideQuest) => void
 }
 
-export function SideQuestList({ quests, currentUserId, emptyTitle = 'No hay quests', emptyDescription, emptyAction }: Props) {
+export function SideQuestList({ quests, currentUserId, emptyTitle = 'No hay quests', emptyDescription, emptyAction, onOpen }: Props) {
   if (!quests.length) {
     return (
       <EmptyState
@@ -30,7 +31,7 @@ export function SideQuestList({ quests, currentUserId, emptyTitle = 'No hay ques
   return (
     <div className="flex flex-col gap-3">
       {quests.map((quest) => (
-        <SideQuestCard key={quest.id} quest={quest} currentUserId={currentUserId} />
+        <SideQuestCard key={quest.id} quest={quest} currentUserId={currentUserId} onOpen={onOpen} />
       ))}
     </div>
   )

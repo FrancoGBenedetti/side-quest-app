@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSidequests } from '../hooks/useSidequests'
 import { useSubscriptions } from '../hooks/useSubscriptions'
 import { useAuth } from '../hooks/useAuth'
 import { SideQuestList } from '../components/sidequests/SideQuestList'
+import { SidequestModal } from '../components/sidequests/SidequestModal'
 import { SubscriptionStatusBadge } from '../components/sidequests/SideQuestStatusBadge'
 import { Spinner } from '../components/ui/Spinner'
 
@@ -10,6 +12,7 @@ export function DashboardPage() {
   const { profile } = useAuth()
   const { ownedSidequests } = useSidequests()
   const { subscriptions, loading: subsLoading } = useSubscriptions()
+  const [selectedQuestId, setSelectedQuestId] = useState<string | null>(null)
 
   const activeSubscriptions = subscriptions.filter(
     (s) => s.status === 'active' || s.status === 'pending'
@@ -43,6 +46,7 @@ export function DashboardPage() {
         <SideQuestList
           quests={ownedSidequests}
           currentUserId={profile?.uid}
+          onOpen={(q) => setSelectedQuestId(q.id)}
           emptyTitle="No has creado quests aún"
           emptyDescription="Crea tu primera sidequest y asígnala a un amigo o ponla en el explorador global."
           emptyAction={
@@ -76,9 +80,10 @@ export function DashboardPage() {
           <ul className="flex flex-col gap-3">
             {activeSubscriptions.map((sub) => (
               <li key={sub.questId}>
-                <Link
-                  to={`/quests/${sub.questId}`}
-                  className="block rounded-xl border border-gray-800 bg-gray-900 p-4 hover:border-gray-700 transition-colors"
+                <button
+                  type="button"
+                  onClick={() => setSelectedQuestId(sub.questId)}
+                  className="w-full text-left block rounded-xl border border-gray-800 bg-gray-900 p-4 hover:border-gray-700 transition-colors"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
@@ -101,12 +106,19 @@ export function DashboardPage() {
                       <p className="text-xs text-gray-400 truncate max-w-[100px]">{sub.questReward}</p>
                     </div>
                   </div>
-                </Link>
+                </button>
               </li>
             ))}
           </ul>
         )}
       </section>
+
+      {selectedQuestId && (
+        <SidequestModal
+          questId={selectedQuestId}
+          onClose={() => setSelectedQuestId(null)}
+        />
+      )}
     </div>
   )
 }

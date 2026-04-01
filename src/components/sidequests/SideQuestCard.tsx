@@ -14,9 +14,11 @@ interface Props {
   action?: React.ReactNode
   /** 'list' (default) = fila vertical; 'grid' = card cuadrada con footer fijo al fondo */
   variant?: 'list' | 'grid'
+  /** If provided, clicking the card title opens the modal instead of navigating */
+  onOpen?: (quest: SideQuest) => void
 }
 
-export function SideQuestCard({ quest, currentUserId, action, variant = 'list' }: Props) {
+export function SideQuestCard({ quest, currentUserId, action, variant = 'list', onOpen }: Props) {
   const expired = isExpired(quest)
   const isFull = quest.maxSubscribers !== null && quest.subscribersCount >= quest.maxSubscribers
   const isGrid = variant === 'grid'
@@ -41,15 +43,28 @@ export function SideQuestCard({ quest, currentUserId, action, variant = 'list' }
           {isFull && <Badge variant="default">Llena</Badge>}
         </div>
 
-        <Link
-          to={`/quests/${quest.id}`}
-          className={cn(
-            'block font-semibold text-white hover:text-purple-400 transition-colors',
-            isGrid ? 'text-base leading-snug' : 'truncate'
-          )}
-        >
-          {quest.title}
-        </Link>
+        {onOpen ? (
+          <button
+            type="button"
+            onClick={() => onOpen(quest)}
+            className={cn(
+              'block text-left font-semibold text-white hover:text-purple-400 transition-colors',
+              isGrid ? 'text-base leading-snug' : 'truncate w-full'
+            )}
+          >
+            {quest.title}
+          </button>
+        ) : (
+          <Link
+            to={`/quests/${quest.id}`}
+            className={cn(
+              'block font-semibold text-white hover:text-purple-400 transition-colors',
+              isGrid ? 'text-base leading-snug' : 'truncate'
+            )}
+          >
+            {quest.title}
+          </Link>
+        )}
 
         <p className="mt-1.5 text-sm text-gray-400 line-clamp-2">{quest.description}</p>
 

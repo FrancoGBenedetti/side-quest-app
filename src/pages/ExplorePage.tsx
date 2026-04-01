@@ -4,12 +4,12 @@ import { useDebounce } from '../hooks/useDebounce'
 import { sortQuests, type QuestSortBy } from '../utils/sortQuests'
 import type { SideQuest } from '../types/sidequest'
 import { SideQuestCard } from '../components/sidequests/SideQuestCard'
+import { SidequestModal } from '../components/sidequests/SidequestModal'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Spinner } from '../components/ui/Spinner'
 import { useAuth } from '../hooks/useAuth'
-import { useNavigate } from 'react-router-dom'
 import { QUEST_CATEGORIES } from '../constants/questCategories'
 import { cn } from '../utils/cn'
 
@@ -90,7 +90,9 @@ function CategoryFilters({
 // ── Main page ────────────────────────────────────────────────────────────────
 export function ExplorePage() {
   const { profile } = useAuth()
-  const navigate = useNavigate()
+
+  // Modal
+  const [selectedQuestId, setSelectedQuestId] = useState<string | null>(null)
 
   // Filtros
   const [query, setQuery] = useState('')
@@ -197,12 +199,13 @@ export function ExplorePage() {
                 quest={quest}
                 variant="grid"
                 currentUserId={profile?.uid}
+                onOpen={(q) => setSelectedQuestId(q.id)}
                 action={
                   canJoin ? (
                     <Button
                       size="sm"
                       className="w-full"
-                      onClick={() => navigate(`/quests/${quest.id}`)}
+                      onClick={() => setSelectedQuestId(quest.id)}
                     >
                       Ver Quest
                     </Button>
@@ -211,7 +214,7 @@ export function ExplorePage() {
                       size="sm"
                       variant="ghost"
                       className="w-full"
-                      onClick={() => navigate(`/quests/${quest.id}`)}
+                      onClick={() => setSelectedQuestId(quest.id)}
                     >
                       Ver detalles
                     </Button>
@@ -221,6 +224,13 @@ export function ExplorePage() {
             )
           })}
         </div>
+      )}
+
+      {selectedQuestId && (
+        <SidequestModal
+          questId={selectedQuestId}
+          onClose={() => setSelectedQuestId(null)}
+        />
       )}
     </div>
   )

@@ -102,6 +102,31 @@ service cloud.firestore {
           isOwner(get(/databases/$(database)/documents/sidequests/$(sidequestId)).data.ownerId)
         );
       }
+
+      // ── Submissions subcollection ────────────────────────────────────────
+      match /submissions/{submissionId} {
+        // Read: quest pública → todos los auth; privada → owner o el propio submitter
+        allow read: if isSignedIn() && (
+          get(/databases/$(database)/documents/sidequests/$(sidequestId)).data.visibility == 'public' ||
+          isOwner(get(/databases/$(database)/documents/sidequests/$(sidequestId)).data.ownerId) ||
+          isOwner(resource.data.userId)
+        );
+
+        // Create: solo el propio usuario
+        allow create: if isSignedIn()
+          && request.resource.data.userId == request.auth.uid;
+
+        // Update: owner del quest (aprobar/rechazar) o el submitter si pending
+        allow update: if isSignedIn() && (
+          isOwner(get(/databases/$(database)/documents/sidequests/$(sidequestId)).data.ownerId) ||
+          (isOwner(resource.data.userId) && resource.data.status == 'pending')
+        );
+
+        allow delete: if isSignedIn() && (
+          isOwner(resource.data.userId) ||
+          isOwner(get(/databases/$(database)/documents/sidequests/$(sidequestId)).data.ownerId)
+        );
+      }
     }
 
     // ─── Friend requests ─────────────────────────────────────────────────────
