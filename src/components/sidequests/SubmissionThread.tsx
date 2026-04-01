@@ -74,15 +74,21 @@ export function SubmissionThread({
 
   async function handleSubmit(evidenceText: string | null, evidenceImageUrl: string | null) {
     if (!currentUser) return
-    await submitEvidence(quest, currentUser, evidenceText, evidenceImageUrl)
-    toast('Evidencia enviada. Esperando confirmación del owner.', 'success')
-    setShowForm(false)
-    setHasPending(true)
-    // Reload first page
-    const page = await getSubmissions(quest.id)
-    setItems(page.items)
-    setLastDoc(page.lastDoc)
-    setHasMore(page.hasMore)
+    try {
+      await submitEvidence(quest, currentUser, evidenceText, evidenceImageUrl)
+      toast('Evidencia enviada. Esperando confirmación del owner.', 'success')
+      setShowForm(false)
+      setHasPending(true)
+      // Reload first page
+      const page = await getSubmissions(quest.id)
+      setItems(page.items)
+      setLastDoc(page.lastDoc)
+      setHasMore(page.hasMore)
+    } catch (err) {
+      console.error('Error al enviar evidencia:', err)
+      toast('Error al enviar la evidencia. Verifica tu conexión e intenta de nuevo.', 'error')
+      throw err // Re-throw so SubmissionForm's finally runs correctly
+    }
   }
 
   async function handleApprove(submission: QuestSubmission, rating: number | null) {
